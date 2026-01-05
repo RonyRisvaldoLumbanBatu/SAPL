@@ -17,7 +17,7 @@ app.use(session({
   }
 }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Static folder removed - Frontend is separate
 
 const requireLogin = (req, res, next) => {
   if (!req.session.user) {
