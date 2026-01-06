@@ -195,6 +195,60 @@ app.put('/api/users/:id', requireLogin, async (req, res) => {
 
 
 // DELETE - Hapus user
+// --- API PRODUK & TRANSAKSI (POS) ---
+
+// GET - Ambil Semua Menu
+app.get('/api/products', requireLogin, async (req, res) => {
+  try {
+    const [rows] = await promisePool.execute('SELECT * FROM products WHERE is_available = 1');
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Error fetching products', error);
+    res.status(500).json({ success: false, message: 'Gagal ambil menu' });
+  }
+});
+
+// POST - Simpan Transaksi Baru
+app.post('/api/transactions', requireLogin, async (req, res) => {
+  const { items, totalAmount, customerName, paymentMethod } = req.body;
+  const userId = req.session.user.id;
+
+  if (!items || items.length === 0) {
+    return res.status(400).json({ success: false, message: 'Keranjang kosong' });
+  }
+
+  const connection = await promisePool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // 1. Simpan Header Transaksi
+    const [orderResult] = await connection.execute(
+      'INSERT INTO orders (user_id, customer_name, total_amount, payment_method) VALUES (?, ?, ?, ?)',
+      [userId, customerName || 'Pelanggan', totalAmount, paymentMethod || 'cash']
+    );
+    const orderId = orderResult.insertId;
+
+    // 2. Simpan Detail Item
+    for (const item of items) {
+      await connection.execute(
+        'INSERT INTO order_items (order_id, product_id, quantity, price_at_time, subtotal) VALUES (?, ?, ?, ?, ?)',
+        [orderId, item.id, item.quantity, item.price, item.price * item.quantity]
+      );
+    }
+
+    await connection.commit();
+    res.json({ success: true, message: 'Transaksi berhasil disimpan!', orderId });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Transaction Error:', error);
+    res.status(500).json({ success: false, message: 'Gagal menyimpan transaksi' });
+  } finally {
+    connection.release();
+  }
+});
+
+// DELETE - Hapus user
 app.delete('/api/users/:id', requireLogin, async (req, res) => {
   const userId = req.params.id;
 

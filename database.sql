@@ -55,7 +55,7 @@ CREATE TABLE order_items (
 -- 1. Users
 INSERT INTO users (username, password, name, role) VALUES 
 ('admin', 'admin123', 'Bos Besar', 'admin'),
-('kasir', 'kasir123', 'Siti Kasir', 'kasir');
+('kasir', 'kasir123', 'Bayu Kasir', 'kasir');
 
 -- 2. Products (Menu Ayam Penyet Lamongan)
 INSERT INTO products (name, price, category) VALUES 
