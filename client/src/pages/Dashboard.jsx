@@ -2,14 +2,23 @@ import React, { useEffect, useState } from 'react';
 import '../App.css';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, Plus, Minus, Utensils, Coffee, CreditCard, LogOut, X, Wallet, Banknote, Grid } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Utensils, Coffee, CreditCard, LogOut, X, Wallet, Banknote, Grid, History, Clock, DollarSign, Receipt, TrendingUp, Calendar, LayoutDashboard, UtensilsCrossed, Users, Search, Edit, CheckCircle, XCircle, Image as ImageIcon } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { NumericFormat } from 'react-number-format';
+import Swal from 'sweetalert2';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+
+
+
+
 
 const Dashboard = () => {
     const [user, setUser] = useState(null);
     const navigate = useNavigate();
+
+
 
     useEffect(() => {
         const checkSession = async () => {
@@ -52,50 +61,646 @@ const Dashboard = () => {
     }
 };
 
-const AdminView = ({ user, handleLogout }) => (
-    <div className="dashboard-layout">
-        <aside className="sidebar">
-            <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-                <h2 className="text-gradient">SAPL Owner</h2>
-                <span style={{ background: 'var(--primary)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem' }}>SUPER ADMIN</span>
-            </div>
-            <nav>
-                <ul style={{ listStyle: 'none' }}>
-                    <li className="nav-item active">📊 Laporan Penjualan</li>
-                    <li className="nav-item">🍗 Menu Terlaris</li>
-                    <li className="nav-item">👥 Manajemen Staff</li>
-                    <li className="nav-item">⚙️ Pengaturan</li>
-                </ul>
-            </nav>
-        </aside>
-        <main className="main-content">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <div>
-                    <h1>Halo Bos, {user.name}!</h1>
-                    <p style={{ color: 'var(--text-muted)' }}>Ini ringkasan omset toko hari ini.</p>
-                </div>
-                <button onClick={handleLogout} className="btn" style={{ background: '#333', color: 'white' }}>
-                    <LogOut size={16} style={{ marginRight: '8px' }} /> Keluar
-                </button>
-            </header>
+const AdminView = ({ user, handleLogout }) => {
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showModal, setShowModal] = useState(false);
+    const [editingProduct, setEditingProduct] = useState(null);
+    const [adminStats, setAdminStats] = useState({
+        summary: { total_omset: 0, total_transaksi: 0, rerata_pesanan: 0 },
+        topProduct: { name: '-', total_sold: 0 },
+        trend: [],
+        topList: [],
+        recent: []
+    });
+    const [allTransactions, setAllTransactions] = useState([]);
+    const [lastUpdated, setLastUpdated] = useState(null);
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
-                <div className="stat-card">
-                    <h3>Total Omset Hari Ini</h3>
-                    <p className="stat-value text-success">Rp 1.250.000</p>
-                    <small>Naik 12% dari kemarin</small>
+    const fetchAdminStats = async () => {
+        try {
+            setLoading(true);
+            const res = await axios.get('/api/admin/stats');
+            if (res.data.success) {
+                setAdminStats(res.data.data);
+                setLastUpdated(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+            }
+        } catch (error) {
+            console.error('Gagal ambil stats admin', error);
+            Swal.fire('Error', 'Gagal memuat statistik admin', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchAllTransactions = async () => {
+        setLoading(true);
+        try {
+            const res = await axios.get('/api/admin/transactions');
+            if (res.data.success) {
+                setAllTransactions(res.data.data);
+            }
+        } catch (error) {
+            console.error('Gagal ambil semua transaksi', error);
+            Swal.fire('Error', 'Gagal memuat data laporan', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Form State
+    const [formData, setFormData] = useState({
+        name: '',
+        price: '',
+        category: 'makanan',
+        image: '',
+        is_available: 1
+    });
+
+    useEffect(() => {
+        if (activeTab === 'menu') {
+            fetchProducts();
+        } else if (activeTab === 'dashboard') {
+            fetchAdminStats();
+        } else if (activeTab === 'reports') {
+            fetchAllTransactions();
+        }
+    }, [activeTab]);
+
+    const fetchProducts = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get('/api/products?all=true');
+            if (response.data.success) {
+                setProducts(response.data.data);
+            }
+        } catch (error) {
+            Swal.fire('Error', 'Gagal membua data menu', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        if (!formData.name || !formData.price) return;
+
+        try {
+            if (editingProduct) {
+                await axios.put(`/api/products/${editingProduct.id}`, formData);
+                Swal.fire('Sukses', 'Menu berhasil diupdate', 'success');
+            } else {
+                await axios.post('/api/products', formData);
+                Swal.fire('Sukses', 'Menu baru berhasil ditambahkan', 'success');
+            }
+            setShowModal(false);
+            setEditingProduct(null);
+            fetchProducts();
+            resetForm();
+        } catch (error) {
+            Swal.fire('Error', 'Gagal menyimpan menu', 'error');
+        }
+    };
+
+    const handleDelete = async (id) => {
+        const result = await Swal.fire({
+            title: 'Hapus Menu?',
+            text: "Menu akan dihapus permanen!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'Ya, Hapus!'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                await axios.delete(`/api/products/${id}`);
+                Swal.fire('Terhapus!', 'Menu telah dihapus.', 'success');
+                fetchProducts();
+            } catch (error) {
+                Swal.fire('Gagal', 'Menu tidak bisa dihapus.', 'error');
+            }
+        }
+    };
+
+    const openEditModal = (product) => {
+        setEditingProduct(product);
+        setFormData({
+            name: product.name,
+            price: product.price,
+            category: product.category,
+            image: product.image || '',
+            is_available: product.is_available
+        });
+        setShowModal(true);
+    };
+
+    const openAddModal = () => {
+        setEditingProduct(null);
+        resetForm();
+        setShowModal(true);
+    };
+
+    const resetForm = () => {
+        setFormData({ name: '', price: '', category: 'makanan', image: '', is_available: 1 });
+    };
+
+    const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    // Clock State
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    return (
+        <div className="dashboard-layout" style={{ background: 'var(--dark-bg)', display: 'flex', height: '100vh', overflow: 'hidden' }}>
+            <aside style={{ width: '280px', background: 'var(--dark-surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', padding: '2rem' }}>
+                <div style={{ marginBottom: '3rem', textAlign: 'center' }}>
+                    <h2 className="text-gradient" style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>SAPL Owner</h2>
+                    <span style={{ background: 'rgba(249, 115, 22, 0.2)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', letterSpacing: '1px', fontWeight: '600', border: '1px solid rgba(249, 115, 22, 0.3)' }}>SUPER ADMIN</span>
                 </div>
-                <div className="stat-card">
-                    <h3>Menu Paling Laris</h3>
-                    <p className="stat-value text-secondary">Ayam Penyet Paha</p>
-                    <small>54 Porsi terjual</small>
-                </div>
-            </div>
-        </main>
-    </div>
-);
+                <nav style={{ flex: 1 }}>
+                    <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {[
+                            { id: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard },
+                            { id: 'reports', label: 'Laporan Penjualan', icon: History },
+                            { id: 'menu', label: 'Manajemen Menu', icon: UtensilsCrossed },
+                            { id: 'staff', label: 'Staff (Soon)', icon: Users, disabled: true }
+                        ].map(item => (
+                            <li
+                                key={item.id}
+                                onClick={() => !item.disabled && setActiveTab(item.id)}
+                                style={{
+                                    padding: '14px 16px',
+                                    borderRadius: '12px',
+                                    cursor: item.disabled ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    color: activeTab === item.id ? '#fff' : '#888',
+                                    background: activeTab === item.id ? 'linear-gradient(90deg, #f97316, #ea580c)' : 'transparent',
+                                    transition: 'all 0.3s',
+                                    opacity: item.disabled ? 0.5 : 1,
+                                    fontWeight: activeTab === item.id ? '600' : '400',
+                                    boxShadow: activeTab === item.id ? '0 4px 12px rgba(249, 115, 22, 0.3)' : 'none'
+                                }}
+                            >
+                                <item.icon size={20} />
+                                {item.label}
+                            </li>
+                        ))}
+                    </ul>
+                </nav>
+                <button onClick={handleLogout} className="btn" style={{ background: '#2a2a2a', color: '#ccc', border: '1px solid #444', justifyContent: 'center', marginTop: 'auto' }}>
+                    <LogOut size={18} style={{ marginRight: '8px' }} /> Keluar
+                </button>
+            </aside>
+
+            <main className="main-content" style={{ flex: 1, overflowY: 'auto', padding: '2.5rem', background: 'var(--dark-bg)' }}>
+                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+                    <div>
+                        <h1 style={{ fontSize: '2.5rem', margin: '0 0 0.5rem 0', fontWeight: 'bold' }}>Halo, Rony! 👋</h1>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>{activeTab === 'dashboard' ? 'Pantau performa bisnis Anda hari ini.' : 'Kelola daftar menu restoran Anda.'}</p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <div style={{
+                            background: 'var(--dark-surface)',
+                            padding: '10px 20px',
+                            borderRadius: '30px',
+                            fontFamily: 'monospace',
+                            fontSize: '1.1rem',
+                            border: '1px solid var(--border)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            color: 'var(--text-main)',
+                            boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+                        }}>
+                            <Clock size={18} color="var(--primary)" />
+                            {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                    </div>
+                </header>
+
+                {activeTab === 'dashboard' && (
+                    <div style={{ animation: 'fadeIn 0.5s ease' }}>
+                        {/* 4 Stat Cards */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                            <div style={{ background: 'linear-gradient(135deg, #FF4500 0%, #ff8c00 100%)', padding: '1.5rem', borderRadius: '24px', color: 'white', position: 'relative', overflow: 'hidden', boxShadow: '0 10px 30px rgba(255, 69, 0, 0.3)' }}>
+                                <div style={{ position: 'absolute', right: '-10px', bottom: '-10px', opacity: 0.2 }}><DollarSign size={80} /></div>
+                                <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', opacity: 0.8, marginBottom: '0.5rem', letterSpacing: '1px' }}>Total Omset</h3>
+                                <p style={{ fontSize: '1.8rem', fontWeight: 'bold', margin: '0.5rem 0' }}>Rp {(parseFloat(adminStats.summary.total_omset) || 0).toLocaleString('id-ID')}</p>
+                                <div style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: '20px', display: 'inline-block' }}>Pendapatan kotor hari ini</div>
+                            </div>
+
+                            <div style={{ background: 'var(--dark-surface)', padding: '1.5rem', borderRadius: '24px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                    <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '10px', borderRadius: '12px', color: '#3b82f6' }}><Receipt size={24} /></div>
+                                    <TrendingUp size={16} color="var(--success)" />
+                                </div>
+                                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Total Transaksi</h3>
+                                <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{adminStats.summary.total_transaksi}</p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: '5px' }}>Pesanan masuk hari ini</p>
+                            </div>
+
+                            <div style={{ background: 'var(--dark-surface)', padding: '1.5rem', borderRadius: '24px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '10px', borderRadius: '12px', color: '#10b981' }}><Wallet size={24} /></div>
+                                    <TrendingUp size={16} color="var(--success)" />
+                                </div>
+                                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Rerata Pesanan</h3>
+                                <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white', margin: 0 }}>Rp {Math.round(adminStats.summary.rerata_pesanan || 0).toLocaleString()}</p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '5px' }}>Per transaksi hari ini</p>
+                            </div>
+
+                            <div style={{ background: 'var(--dark-surface)', padding: '1.5rem', borderRadius: '24px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                    <div style={{ background: 'rgba(234, 179, 8, 0.1)', padding: '10px', borderRadius: '12px', color: '#eab308' }}><Utensils size={24} /></div>
+                                    <CheckCircle size={16} color="#eab308" />
+                                </div>
+                                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Menu Terpopuler</h3>
+                                <p style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{adminStats.topProduct.name}</p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '5px' }}>Terjual {adminStats.topProduct.total_sold} porsi</p>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
+                            {/* Sales Chart */}
+                            <div style={{ background: 'var(--dark-surface)', padding: '2rem', borderRadius: '30px', border: '1px solid var(--border)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <TrendingUp size={20} color="var(--primary)" /> Tren Penjualan Hari Ini
+                                    </h3>
+                                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Realtime Update</div>
+                                </div>
+                                <div style={{ height: '300px', width: '100%' }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={adminStats.trend.length > 0 ? adminStats.trend.map(t => ({ ...t, time: `${t.hour}:00` })) : [{ time: '08:00', sales: 0 }, { time: '12:00', sales: 0 }, { time: '18:00', sales: 0 }]}>
+                                            <defs>
+                                                <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                            <XAxis dataKey="time" stroke="#555" fontSize={12} tickLine={false} axisLine={false} />
+                                            <YAxis stroke="#555" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val / 1000}k`} />
+                                            <Tooltip
+                                                contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff' }}
+                                                itemStyle={{ color: 'var(--primary)' }}
+                                                formatter={(value) => [`Rp ${value.toLocaleString()}`, 'Penjualan']}
+                                            />
+                                            <Area type="monotone" dataKey="sales" stroke="var(--primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* Top Selling Items List */}
+                            <div style={{ background: 'var(--dark-surface)', padding: '2rem', borderRadius: '30px', border: '1px solid var(--border)' }}>
+                                <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'white', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <CheckCircle size={20} color="#eab308" /> Menu Terlaris
+                                </h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {adminStats.topList.length === 0 ? (
+                                        <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>Belum ada data hari ini</p>
+                                    ) : adminStats.topList.map((item, id) => (
+                                        <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <div style={{ width: '40px', height: '40px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--primary)' }}>{id + 1}</div>
+                                            <div style={{ flex: 1 }}>
+                                                <h4 style={{ fontSize: '0.9rem', color: 'white', margin: 0 }}>{item.name}</h4>
+                                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{item.sales} Terjual</p>
+                                            </div>
+                                            <div style={{ textAlign: 'right' }}>
+                                                <p style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'white', margin: 0 }}>Rp {item.price.toLocaleString()}</p>
+                                                <TrendingUp size={12} color="var(--success)" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => setActiveTab('menu')} className="btn" style={{ width: '100%', marginTop: '1.5rem', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}>Kelola Daftar Menu</button>
+                            </div>
+                        </div>
+
+                        {/* Recent Transactions Table in Admin */}
+                        <div style={{ marginTop: '2.5rem', background: 'var(--dark-surface)', borderRadius: '30px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
+                            <div style={{ padding: '1.8rem 2.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <History size={20} color="var(--primary)" />
+                                    Transaksi Terbaru
+                                </h3>
+                                <button
+                                    onClick={() => setActiveTab('reports')}
+                                    style={{
+                                        background: 'rgba(249, 115, 22, 0.1)',
+                                        border: '1px solid rgba(249, 115, 22, 0.2)',
+                                        color: 'var(--primary)',
+                                        fontSize: '0.85rem',
+                                        cursor: 'pointer',
+                                        padding: '8px 16px',
+                                        borderRadius: '10px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        transition: 'all 0.2s',
+                                        fontWeight: '600'
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(249, 115, 22, 0.2)'}
+                                    onMouseOut={(e) => e.currentTarget.style.background = 'rgba(249, 115, 22, 0.1)'}
+                                >
+                                    Lihat Semua <TrendingUp size={14} />
+                                </button>
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)' }}>
+                                        <th style={{ padding: '1.2rem 2.5rem', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: '700' }}>Waktu</th>
+                                        <th style={{ padding: '1.2rem', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: '700' }}>ID Order</th>
+                                        <th style={{ padding: '1.2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: '700' }}>Metode</th>
+                                        <th style={{ padding: '1.2rem 2.5rem', textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: '700' }}>Total Pembayaran</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {adminStats.recent.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="4" style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '1rem' }}>
+                                                <div style={{ opacity: 0.5, marginBottom: '10px' }}><History size={40} /></div>
+                                                Belum ada transaksi hari ini.
+                                            </td>
+                                        </tr>
+                                    ) : adminStats.recent.map((trx, idx) => (
+                                        <tr
+                                            key={trx.id}
+                                            className="table-row-hover"
+                                            style={{
+                                                borderBottom: idx === adminStats.recent.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.03)',
+                                                transition: 'all 0.2s',
+                                                background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'
+                                            }}
+                                        >
+                                            <td style={{ padding: '1.2rem 2.5rem', color: '#fff', fontSize: '0.95rem', fontWeight: '500' }}>
+                                                {new Date(trx.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                            </td>
+                                            <td style={{ padding: '1.2rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.9rem', letterSpacing: '0.5px' }}>
+                                                <span style={{ color: 'var(--primary)', opacity: 0.7 }}>#</span>{trx.id}
+                                            </td>
+                                            <td style={{ padding: '1.2rem', textAlign: 'center' }}>
+                                                <div style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    padding: '6px 14px',
+                                                    borderRadius: '12px',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: '700',
+                                                    background: trx.payment_method === 'qris' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                                    color: trx.payment_method === 'qris' ? '#60a5fa' : '#34d399',
+                                                    border: `1px solid ${trx.payment_method === 'qris' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(16, 185, 129, 0.15)'}`
+                                                }}>
+                                                    {trx.payment_method === 'qris' ? <Smartphone size={12} /> : <Banknote size={12} />}
+                                                    {trx.payment_method.toUpperCase()}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '1.2rem 2.5rem', textAlign: 'right', fontWeight: '800', color: 'white', fontSize: '1.05rem', fontFamily: 'monospace' }}>
+                                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginRight: '4px', fontWeight: '400' }}>Rp</span>
+                                                {parseFloat(trx.total_amount).toLocaleString('id-ID')}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'reports' && (
+                    <div style={{ animation: 'fadeIn 0.5s ease' }}>
+                        <div style={{ background: 'var(--dark-surface)', borderRadius: '30px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
+                            <div style={{ padding: '2rem 2.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', margin: 0 }}>Laporan Penjualan Lengkap</h3>
+                                    <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0' }}>Data riwayat transaksi dari awal hingga sekarang</p>
+                                </div>
+                                <button onClick={fetchAllTransactions} className="btn" style={{ background: 'rgba(249, 115, 22, 0.1)', color: 'var(--primary)', border: '1px solid rgba(249, 115, 22, 0.2)' }}>Muat Ulang</button>
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)' }}>
+                                        <th style={{ padding: '1.5rem 2.5rem', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Tanggal & Waktu</th>
+                                        <th style={{ padding: '1.5rem', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>ID</th>
+                                        <th style={{ padding: '1.5rem', textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Kasir</th>
+                                        <th style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Metode</th>
+                                        <th style={{ padding: '1.5rem 2.5rem', textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {allTransactions.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="5" style={{ padding: '5rem', textAlign: 'center', color: 'var(--text-muted)' }}>Belum ada data transaksi yang tersimpan.</td>
+                                        </tr>
+                                    ) : allTransactions.map((trx, idx) => (
+                                        <tr key={trx.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                                            <td style={{ padding: '1.2rem 2.5rem', color: '#fff' }}>
+                                                {new Date(trx.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} -
+                                                <span style={{ color: 'var(--text-muted)', marginLeft: '5px' }}>{new Date(trx.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </td>
+                                            <td style={{ padding: '1.2rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>#{trx.id}</td>
+                                            <td style={{ padding: '1.2rem', color: 'white' }}>{trx.cashier_name || 'System'}</td>
+                                            <td style={{ padding: '1.2rem', textAlign: 'center' }}>
+                                                <span style={{
+                                                    padding: '4px 12px',
+                                                    borderRadius: '12px',
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: '700',
+                                                    background: trx.payment_method === 'qris' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                                    color: trx.payment_method === 'qris' ? '#60a5fa' : '#34d399',
+                                                    border: `1px solid ${trx.payment_method === 'qris' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)'}`
+                                                }}>
+                                                    {trx.payment_method.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '1.2rem 2.5rem', textAlign: 'right', fontWeight: 'bold', color: 'white', fontFamily: 'monospace' }}>
+                                                Rp {parseFloat(trx.total_amount).toLocaleString('id-ID')}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'menu' && (
+                    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
+                            <div style={{ position: 'relative', width: '350px' }}>
+                                <Search size={20} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Cari menu makanan..."
+                                    className="input-field"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    style={{ paddingLeft: '45px', background: 'var(--dark-surface)', border: '1px solid var(--border)', height: '50px', borderRadius: '12px', width: '100%', color: 'white' }}
+                                />
+                            </div>
+                            <button onClick={openAddModal} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f97316', color: 'white', border: 'none', padding: '0 25px', borderRadius: '12px', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(249, 115, 22, 0.3)', cursor: 'pointer', fontSize: '1rem' }}>
+                                <Plus size={20} /> Tambah Menu
+                            </button>
+                        </div>
+
+                        <div style={{ background: '#1e1e1e', borderRadius: '20px', overflow: 'hidden', border: '1px solid #333', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead style={{ background: '#252525', borderBottom: '1px solid #333' }}>
+                                    <tr>
+                                        <th style={{ padding: '20px', textAlign: 'left', color: '#888', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>Menu Item</th>
+                                        <th style={{ padding: '20px', textAlign: 'left', color: '#888', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>Kategori</th>
+                                        <th style={{ padding: '20px', textAlign: 'left', color: '#888', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>Harga</th>
+                                        <th style={{ padding: '20px', textAlign: 'center', color: '#888', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>Status</th>
+                                        <th style={{ padding: '20px', textAlign: 'right', color: '#888', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {loading ? (
+                                        <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: '#888' }}>Memuat data menu...</td></tr>
+                                    ) : filteredProducts.map((product, idx) => (
+                                        <tr key={product.id} className="table-row-hover" style={{ borderBottom: '1px solid #2a2a2a', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                                            <td style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                                <div style={{ width: '60px', height: '60px', background: '#2a2a2a', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
+                                                    {product.image ? <img src={`/assets/images/${product.image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <ImageIcon size={24} style={{ margin: '18px', color: '#444' }} />}
+                                                </div>
+                                                <span style={{ fontWeight: '600', fontSize: '1rem', color: '#e0e0e0' }}>{product.name}</span>
+                                            </td>
+                                            <td style={{ padding: '15px 20px' }}>
+                                                <span style={{ padding: '6px 14px', borderRadius: '20px', background: '#333', color: '#ccc', fontSize: '0.85rem', textTransform: 'capitalize' }}>{product.category}</span>
+                                            </td>
+                                            <td style={{ padding: '15px 20px', color: '#f97316', fontWeight: 'bold' }}>Rp {product.price.toLocaleString()}</td>
+                                            <td style={{ padding: '15px 20px', textAlign: 'center' }}>
+                                                {product.is_available ?
+                                                    <span style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.15)', padding: '6px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '600', border: '1px solid rgba(16, 185, 129, 0.2)' }}>Tersedia</span> :
+                                                    <span style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)', padding: '6px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '600', border: '1px solid rgba(239, 68, 68, 0.2)' }}>Habis</span>
+                                                }
+                                            </td>
+                                            <td style={{ padding: '15px 20px', textAlign: 'right' }}>
+                                                <button onClick={() => openEditModal(product)} style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', border: 'none', color: '#3b82f6', marginRight: '8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} title="Edit"><Edit size={18} /></button>
+                                                <button onClick={() => handleDelete(product.id)} style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} title="Hapus"><Trash2 size={18} /></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )
+                }
+
+                {/* Modular Add/Edit Product Modal */}
+                {
+                    showModal && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                            <div style={{ background: '#1e1e1e', padding: '30px', borderRadius: '20px', width: '500px', border: '1px solid #333', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', animation: 'slideUp 0.3s ease' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+                                    <h2 style={{ color: 'white', fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+                                        {editingProduct ? <Edit size={24} color="#3b82f6" /> : <Plus size={24} color="#f97316" />}
+                                        {editingProduct ? 'Edit Menu Item' : 'Tambah Menu Baru'}
+                                    </h2>
+                                    <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer' }}><X size={24} /></button>
+                                </div>
+
+                                <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '0.9rem' }}>Nama Menu</label>
+                                        <input type="text" placeholder="Contoh: Nasi Goreng Spesial" className="input-field" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required style={{ width: '100%', padding: '12px 15px', background: '#252525', border: '1px solid #333', borderRadius: '10px', color: 'white', outline: 'none' }} />
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '0.9rem' }}>Harga</label>
+                                            <NumericFormat
+                                                value={formData.price}
+                                                onValueChange={(v) => setFormData({ ...formData, price: v.floatValue })}
+                                                thousandSeparator="."
+                                                prefix="Rp "
+                                                className="input-field"
+                                                required
+                                                style={{ width: '100%', padding: '12px 15px', background: '#252525', border: '1px solid #333', borderRadius: '10px', color: 'white', outline: 'none' }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '0.9rem' }}>Kategori</label>
+                                            <select className="input-field" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} style={{ width: '100%', padding: '12px 15px', background: '#252525', border: '1px solid #333', borderRadius: '10px', color: 'white', outline: 'none', cursor: 'pointer' }}>
+                                                <option value="makanan">Makanan</option>
+                                                <option value="minuman">Minuman</option>
+                                                <option value="snack">Camilan</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '0.9rem' }}>Gambar (Nama File)</label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <input type="text" placeholder="image.jpg" className="input-field" value={formData.image} onChange={(e) => setFormData({ ...formData, image: e.target.value })} style={{ width: '100%', padding: '12px 15px', background: '#252525', border: '1px solid #333', borderRadius: '10px', color: 'white', outline: 'none' }} />
+                                            <div style={{ width: '45px', height: '45px', background: '#2a2a2a', borderRadius: '8px', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <ImageIcon size={20} color="#666" />
+                                            </div>
+                                        </div>
+                                        <small style={{ color: '#555', marginTop: '5px', display: 'block' }}>*Pastikan file ada di folder public/assets/images</small>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
+                                        <input
+                                            type="checkbox"
+                                            id="isAvailable"
+                                            checked={formData.is_available === 1}
+                                            onChange={(e) => setFormData({ ...formData, is_available: e.target.checked ? 1 : 0 })}
+                                            style={{ width: '18px', height: '18px', accentColor: '#10b981', cursor: 'pointer' }}
+                                        />
+                                        <label htmlFor="isAvailable" style={{ color: '#ccc', cursor: 'pointer', userSelect: 'none' }}>Tersedia untuk dipesan</label>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
+                                        <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" style={{ flex: 1, padding: '12px', background: '#333', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>Batal</button>
+                                        <button type="submit" className="btn-primary" style={{ flex: 2, padding: '12px', background: editingProduct ? '#3b82f6' : '#f97316', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', boxShadow: editingProduct ? '0 4px 15px rgba(59, 130, 246, 0.3)' : '0 4px 15px rgba(249, 115, 22, 0.3)' }}>
+                                            {editingProduct ? 'Simpan Perubahan' : 'Tambah Menu'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )
+                }
+            </main >
+        </div >
+    );
+};
 
 const CashierView = ({ user, handleLogout }) => {
+    // History & Clock State
+    const [showHistory, setShowHistory] = useState(false);
+    const [dailyTransactions, setDailyTransactions] = useState([]);
+    const [currentTime, setCurrentTime] = useState(new Date());
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [viewMode, setViewMode] = useState('pos'); // 'pos' | 'history'
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const fetchHistory = async () => {
+        setLoadingHistory(true);
+        try {
+            const res = await axios.get('/api/transactions/today');
+            if (res.data.success) {
+                setDailyTransactions(res.data.data);
+                setViewMode('history');
+            }
+        } catch (error) {
+            Swal.fire('Gagal!', 'Tidak bisa memuat riwayat.', 'error');
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
     const [products, setProducts] = useState([]);
     const [cart, setCart] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -103,6 +708,9 @@ const CashierView = ({ user, handleLogout }) => {
     // Search & Filter State
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
+
+    // Order State
+    const [orderType, setOrderType] = useState('dine-in'); // 'dine-in' | 'take-away'
 
     // Payment Modal State
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -138,6 +746,34 @@ const CashierView = ({ user, handleLogout }) => {
 
     const removeFromCart = (productId) => {
         setCart(cart.filter(item => item.id !== productId));
+    };
+
+    const clearCart = () => {
+        Swal.fire({
+            title: 'Hapus Pesanan?',
+            text: "Keranjang akan dikosongkan!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Ya, Hapus!',
+            cancelButtonText: 'Batal',
+            background: '#222', // Dark mode background
+            color: '#fff'       // Dark mode text
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setCart([]);
+                Swal.fire({
+                    title: 'Terhapus!',
+                    text: 'Keranjang sudah bersih.',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    background: '#222',
+                    color: '#fff'
+                });
+            }
+        });
     };
 
     const updateQuantity = (productId, delta) => {
@@ -177,7 +813,13 @@ const CashierView = ({ user, handleLogout }) => {
 
     const processPayment = async () => {
         if (paymentMethod === 'cash' && (parseInt(cashReceived) < totalAmount || !cashReceived)) {
-            alert('Uang diterima kurang!');
+            Swal.fire({
+                icon: 'error',
+                title: 'Uang Kurang!',
+                text: 'Mohon cek kembali nominal pembayaran.',
+                background: '#222',
+                color: '#fff'
+            });
             return;
         }
 
@@ -187,17 +829,34 @@ const CashierView = ({ user, handleLogout }) => {
                 items: cart,
                 totalAmount: totalAmount,
                 customerName: 'Pelanggan Umum',
-                paymentMethod: paymentMethod
+                paymentMethod: paymentMethod,
+                orderType: orderType
             });
 
             if (res.data.success) {
-                generateReceipt(res.data.orderId, cart, totalAmount, user.name, parseInt(cashReceived) || totalAmount, changeAmount);
+                generateReceipt(res.data.orderId, cart, totalAmount, user.name, parseInt(cashReceived) || totalAmount, changeAmount, orderType);
+
                 setShowPaymentModal(false);
                 setCart([]);
-                alert('Transaksi Berhasil! ✅');
+                setOrderType('dine-in');
+
+                Swal.fire({
+                    title: 'Transaksi Berhasil! 🎉',
+                    text: 'Struk sedang dicetak...',
+                    icon: 'success',
+                    background: '#222',
+                    color: '#fff',
+                    confirmButtonColor: '#00C851'
+                });
             }
         } catch (error) {
-            alert('Gagal memproses transaksi ❌');
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal!',
+                text: 'Terjadi kesalahan saat memproses transaksi.',
+                background: '#222',
+                color: '#fff'
+            });
         } finally {
             setLoading(false);
         }
@@ -222,185 +881,239 @@ const CashierView = ({ user, handleLogout }) => {
             <aside className="sidebar" style={{ width: '80px', padding: '1rem 0.5rem', textAlign: 'center' }}>
                 <nav className="mini-nav">
                     <button
-                        className={`nav-icon ${selectedCategory === 'all' ? 'active' : ''}`}
-                        onClick={() => setSelectedCategory('all')}
+                        className={`nav-icon ${viewMode === 'pos' && selectedCategory === 'all' ? 'active' : ''}`}
+                        onClick={() => { setViewMode('pos'); setSelectedCategory('all'); }}
                         title="Semua Menu"
                     >
                         <Grid size={24} />
                     </button>
                     <button
-                        className={`nav-icon ${selectedCategory === 'Makanan' ? 'active' : ''}`}
-                        onClick={() => setSelectedCategory('Makanan')}
+                        className={`nav-icon ${viewMode === 'pos' && selectedCategory === 'Makanan' ? 'active' : ''}`}
+                        onClick={() => { setViewMode('pos'); setSelectedCategory('Makanan'); }}
                         title="Makanan"
                     >
                         <Utensils size={24} />
                     </button>
                     <button
-                        className={`nav-icon ${selectedCategory === 'Minuman' ? 'active' : ''}`}
-                        onClick={() => setSelectedCategory('Minuman')}
+                        className={`nav-icon ${viewMode === 'pos' && selectedCategory === 'Minuman' ? 'active' : ''}`}
+                        onClick={() => { setViewMode('pos'); setSelectedCategory('Minuman'); }}
                         title="Minuman"
                     >
                         <Coffee size={24} />
                     </button>
                     <button
-                        className={`nav-icon ${selectedCategory === 'Extra' ? 'active' : ''}`}
-                        onClick={() => setSelectedCategory('Extra')}
+                        className={`nav-icon ${viewMode === 'pos' && selectedCategory === 'Extra' ? 'active' : ''}`}
+                        onClick={() => { setViewMode('pos'); setSelectedCategory('Extra'); }}
                         title="Extra"
                     >
                         <Plus size={24} />
                     </button>
 
-                    <button className="nav-icon" onClick={handleLogout} style={{ marginTop: 'auto', color: 'var(--danger)' }}>
+                    {/* Buttons Bottom */}
+                    <button
+                        className={`nav-icon ${viewMode === 'history' ? 'active' : ''}`}
+                        onClick={fetchHistory}
+                        title="Laporan & Riwayat"
+                        style={{ marginTop: 'auto', opacity: loadingHistory ? 0.5 : 1, cursor: loadingHistory ? 'wait' : 'pointer' }}
+                        disabled={loadingHistory}
+                    >
+                        <History size={24} />
+                    </button>
+                    <button className="nav-icon" onClick={handleLogout} style={{ marginTop: '1rem', color: 'var(--danger)' }}>
                         <LogOut size={24} />
                     </button>
                 </nav>
             </aside>
 
-            <main className="main-content" style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem', padding: '0', position: 'relative' }}>
+            <main className="main-content" style={{ padding: '0', position: 'relative', overflow: 'hidden' }}>
 
-                {/* LEFT: Product Grid */}
-                <div style={{ padding: '2rem', overflowY: 'auto', height: '100vh' }}>
-                    <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                            <h1>Halo, {user?.name || 'Kasir'}! 👋</h1>
-                            <p style={{ color: 'var(--text-muted)' }}>Siap melayani pelanggan?</p>
-                        </div>
+                {viewMode === 'pos' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem', height: '100vh', width: '100%' }}>
 
-                        {/* Search Bar */}
-                        <div className="search-bar" style={{ position: 'relative', width: '300px' }}>
-                            <input
-                                type="text"
-                                placeholder="Cari menu (cth: Ayam)..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '10px 10px 10px 20px',
-                                    borderRadius: '12px',
-                                    border: '1px solid var(--border)',
-                                    background: 'var(--dark-surface)',
-                                    color: 'white',
-                                    outline: 'none'
-                                }}
-                            />
-                        </div>
-                    </header>
-
-                    {/* Render Categories */}
-                    {filtered.length === 0 && (
-                        <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
-                            <p>Menu tidak ditemukan.</p>
-                        </div>
-                    )}
-
-                    {foods.length > 0 && (
-                        <>
-                            <SectionTitle title="Makanan Berat" icon={<Utensils size={18} />} />
-                            <div className="product-grid">
-                                {foods.map(product => (
-                                    <ProductCard
-                                        key={product.id}
-                                        product={product}
-                                        quantity={cart.find(i => i.id === product.id)?.quantity || 0}
-                                        onClick={() => addToCart(product)}
-                                    />
-                                ))}
-                            </div>
-                        </>
-                    )}
-
-                    {drinks.length > 0 && (
-                        <>
-                            <SectionTitle title="Minuman Segar" icon={<Coffee size={18} />} style={{ marginTop: '2rem' }} />
-                            <div className="product-grid">
-                                {drinks.map(product => (
-                                    <ProductCard
-                                        key={product.id}
-                                        product={product}
-                                        quantity={cart.find(i => i.id === product.id)?.quantity || 0}
-                                        onClick={() => addToCart(product)}
-                                    />
-                                ))}
-                            </div>
-                        </>
-                    )}
-
-                    {extras.length > 0 && (
-                        <>
-                            <SectionTitle title="Tambahan (Extra)" icon={<Plus size={18} />} style={{ marginTop: '2rem' }} />
-                            <div className="product-grid">
-                                {extras.map(product => (
-                                    <ProductCard
-                                        key={product.id}
-                                        product={product}
-                                        quantity={cart.find(i => i.id === product.id)?.quantity || 0}
-                                        onClick={() => addToCart(product)}
-                                    />
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                {/* RIGHT: Cart / Transactions */}
-                <div className="cart-panel">
-                    <div className="cart-header">
-                        <h2>Pesanan Baru</h2>
-                        <span className="badge">{cart.length} Item</span>
-                    </div>
-
-                    <div className="cart-items">
-                        {cart.length === 0 ? (
-                            <div className="empty-cart">
-                                <ShoppingCart size={48} color="#444" />
-                                <p>Keranjang masih kosong</p>
-                            </div>
-                        ) : (
-                            cart.map(item => (
-                                <div key={item.id} className="cart-item">
-                                    <div className="item-info">
-                                        <h4>{item.name}</h4>
-                                        <p>Rp {item.price.toLocaleString()}</p>
-                                        <input
-                                            type="text"
-                                            className="item-note-input"
-                                            placeholder="Catatan (pedas, dll)..."
-                                            value={item.note || ''}
-                                            onChange={(e) => updateItemNote(item.id, e.target.value)}
-                                        />
+                        {/* LEFT: Product Grid */}
+                        <div style={{ padding: '2rem', overflowY: 'auto', height: '100vh' }}>
+                            <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                        <h1>Halo, {user?.name || 'Kasir'}! 👋</h1>
+                                        <div style={{
+                                            background: 'var(--surface)',
+                                            padding: '5px 15px',
+                                            borderRadius: '20px',
+                                            fontFamily: 'monospace',
+                                            fontSize: '1.2rem',
+                                            border: '1px solid var(--border)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px'
+                                        }}>
+                                            <Clock size={16} />
+                                            {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
                                     </div>
-                                    <div className="item-controls">
-                                        <button onClick={() => updateQuantity(item.id, -1)}><Minus size={14} /></button>
-                                        <span>{item.quantity}</span>
-                                        <button onClick={() => updateQuantity(item.id, 1)}><Plus size={14} /></button>
+                                    <p style={{ color: 'var(--text-muted)' }}>Siap melayani pelanggan?</p>
+                                </div>
+
+                                {/* Search Bar */}
+                                <div className="search-bar" style={{ position: 'relative', width: '300px' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Cari menu (cth: Ayam)..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 10px 10px 20px',
+                                            borderRadius: '12px',
+                                            border: '1px solid var(--border)',
+                                            background: 'var(--dark-surface)',
+                                            color: 'white',
+                                            outline: 'none'
+                                        }}
+                                    />
+                                </div>
+                            </header>
+
+                            {/* Render Categories */}
+                            {filtered.length === 0 && (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
+                                    <p>Menu tidak ditemukan.</p>
+                                </div>
+                            )}
+
+                            {foods.length > 0 && (
+                                <>
+                                    <SectionTitle title="Makanan Berat" icon={<Utensils size={18} />} />
+                                    <div className="product-grid">
+                                        {foods.map(product => (
+                                            <ProductCard
+                                                key={product.id}
+                                                product={product}
+                                                quantity={cart.find(i => i.id === product.id)?.quantity || 0}
+                                                onClick={() => addToCart(product)}
+                                            />
+                                        ))}
                                     </div>
-                                    <button className="btn-delete" onClick={() => removeFromCart(item.id)}>
+                                </>
+                            )}
+
+                            {drinks.length > 0 && (
+                                <>
+                                    <SectionTitle title="Minuman Segar" icon={<Coffee size={18} />} style={{ marginTop: '2rem' }} />
+                                    <div className="product-grid">
+                                        {drinks.map(product => (
+                                            <ProductCard
+                                                key={product.id}
+                                                product={product}
+                                                quantity={cart.find(i => i.id === product.id)?.quantity || 0}
+                                                onClick={() => addToCart(product)}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+
+                            {extras.length > 0 && (
+                                <>
+                                    <SectionTitle title="Tambahan (Extra)" icon={<Plus size={18} />} style={{ marginTop: '2rem' }} />
+                                    <div className="product-grid">
+                                        {extras.map(product => (
+                                            <ProductCard
+                                                key={product.id}
+                                                product={product}
+                                                quantity={cart.find(i => i.id === product.id)?.quantity || 0}
+                                                onClick={() => addToCart(product)}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* RIGHT: Cart / Transactions */}
+                        <div className="cart-panel">
+                            <div className="cart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h2>Pesanan Baru</h2>
+                                    <span className="badge">{cart.length} Item</span>
+                                </div>
+                                {cart.length > 0 && (
+                                    <button className="btn-clear-cart" onClick={clearCart} title="Hapus Semua">
                                         <Trash2 size={16} />
                                     </button>
-                                </div>
-                            ))
-                        )}
-                    </div>
+                                )}
+                            </div>
 
-                    <div className="cart-footer">
-                        <div className="summary-row">
-                            <span>Subtotal</span>
-                            <span>Rp {totalAmount.toLocaleString()}</span>
+                            {/* Order Type Toggle */}
+                            <div className="order-type-toggle">
+                                <div
+                                    className={`toggle-option ${orderType === 'dine-in' ? 'active' : ''}`}
+                                    onClick={() => setOrderType('dine-in')}
+                                >
+                                    🍽️ Makan Sini
+                                </div>
+                                <div
+                                    className={`toggle-option ${orderType === 'take-away' ? 'active' : ''}`}
+                                    onClick={() => setOrderType('take-away')}
+                                >
+                                    🥡 Bungkus
+                                </div>
+                            </div>
+
+                            <div className="cart-items">
+                                {cart.length === 0 ? (
+                                    <div className="empty-cart">
+                                        <ShoppingCart size={48} color="#444" />
+                                        <p>Keranjang masih kosong</p>
+                                    </div>
+                                ) : (
+                                    cart.map(item => (
+                                        <div key={item.id} className="cart-item">
+                                            <div className="item-info">
+                                                <h4>{item.name}</h4>
+                                                <p>Rp {item.price.toLocaleString()}</p>
+                                                <input
+                                                    type="text"
+                                                    className="item-note-input"
+                                                    placeholder="Catatan (pedas, dll)..."
+                                                    value={item.note || ''}
+                                                    onChange={(e) => updateItemNote(item.id, e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="item-controls">
+                                                <button onClick={() => updateQuantity(item.id, -1)}><Minus size={14} /></button>
+                                                <span>{item.quantity}</span>
+                                                <button onClick={() => updateQuantity(item.id, 1)}><Plus size={14} /></button>
+                                            </div>
+                                            <button className="btn-delete" onClick={() => removeFromCart(item.id)}>
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+
+                            <div className="cart-footer">
+                                <div className="summary-row">
+                                    <span>Subtotal</span>
+                                    <span>Rp {totalAmount.toLocaleString()}</span>
+                                </div>
+                                <div className="summary-row total">
+                                    <span>Total Bayar</span>
+                                    <span>Rp {totalAmount.toLocaleString()}</span>
+                                </div>
+                                <button
+                                    className="btn btn-primary btn-checkout"
+                                    disabled={cart.length === 0 || loading}
+                                    onClick={handleCheckoutButton}
+                                >
+                                    <CreditCard size={18} style={{ marginRight: '8px' }} />
+                                    {loading ? 'Memproses...' : 'Bayar Sekarang'}
+                                </button>
+                            </div>
                         </div>
-                        <div className="summary-row total">
-                            <span>Total Bayar</span>
-                            <span>Rp {totalAmount.toLocaleString()}</span>
-                        </div>
-                        <button
-                            className="btn btn-primary btn-checkout"
-                            disabled={cart.length === 0 || loading}
-                            onClick={handleCheckoutButton}
-                        >
-                            <CreditCard size={18} style={{ marginRight: '8px' }} />
-                            {loading ? 'Memproses...' : 'Bayar Sekarang'}
-                        </button>
                     </div>
-                </div>
+                )}
 
                 {/* PAYMENT MODAL */}
                 {showPaymentModal && (
@@ -472,6 +1185,233 @@ const CashierView = ({ user, handleLogout }) => {
                     </div>
                 )}
 
+
+
+                {viewMode === 'history' && (
+                    <div style={{ padding: '2rem', height: '100vh', overflowY: 'auto', background: 'var(--background)' }}>
+                        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '2.5rem' }}>
+                                <button
+                                    onClick={() => setViewMode('pos')}
+                                    style={{
+                                        marginRight: '1.5rem',
+                                        background: 'linear-gradient(145deg, #2a2a2a, #333)',
+                                        border: '1px solid #444',
+                                        color: '#fff',
+                                        padding: '12px',
+                                        borderRadius: '12px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 4px 6px rgba(0,0,0,0.2)'
+                                    }}
+                                    title="Kembali ke Kasir"
+                                >
+                                    <Grid size={24} color="#f97316" />
+                                </button>
+                                <div>
+                                    <h1 style={{ fontSize: '2.2rem', margin: 0, background: 'linear-gradient(to right, #fff, #aaa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Laporan Penjualan</h1>
+                                    <span style={{ color: '#666', fontSize: '0.9rem' }}>Ringkasan performa toko hari ini</span>
+                                </div>
+                            </div>
+
+                            {/* Summary Cards */}
+                            {/* Inject Hover Style */}
+                            <style>
+                                {`
+                                    .table-row-hover:hover { background-color: rgba(255, 255, 255, 0.05) !important; }
+                                    .stat-card-hover { transition: transform 0.2s; }
+                                    .stat-card-hover:hover { transform: translateY(-3px); }
+                                `}
+                            </style>
+
+                            {/* Summary Cards */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                                {/* Total Omset */}
+                                <div className="stat-card-hover" style={{
+                                    background: 'linear-gradient(145deg, #1e1e1e, #252525)',
+                                    padding: '1.5rem',
+                                    borderRadius: '16px',
+                                    border: '1px solid #333',
+                                    borderLeft: '4px solid #10b981', // Emerald border
+                                    boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+                                        <h3 style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Omset</h3>
+                                        <div style={{ padding: '8px', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '8px', color: '#10b981' }}>
+                                            <DollarSign size={20} />
+                                        </div>
+                                    </div>
+                                    <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>
+                                        Rp {dailyTransactions.reduce((acc, curr) => acc + (parseFloat(curr.total_amount) || 0), 0).toLocaleString('id-ID')}
+                                    </p>
+                                    <small style={{ color: '#666', fontSize: '0.8rem', marginTop: '5px', display: 'block' }}>* Pendapatan kotor hari ini</small>
+                                </div>
+
+                                {/* Total Transaksi */}
+                                <div className="stat-card-hover" style={{
+                                    background: 'linear-gradient(145deg, #1e1e1e, #252525)',
+                                    padding: '1.5rem',
+                                    borderRadius: '16px',
+                                    border: '1px solid #333',
+                                    borderLeft: '4px solid #f97316', // Orange border
+                                    boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+                                        <h3 style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Transaksi</h3>
+                                        <div style={{ padding: '8px', background: 'rgba(249, 115, 22, 0.15)', borderRadius: '8px', color: '#f97316' }}>
+                                            <Receipt size={20} />
+                                        </div>
+                                    </div>
+                                    <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>
+                                        {dailyTransactions.length} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: '#888' }}>Struk</span>
+                                    </p>
+                                    <small style={{ color: '#666', fontSize: '0.8rem', marginTop: '5px', display: 'block' }}>* Jumlah pesanan selesai</small>
+                                </div>
+
+                                {/* Rata-rata */}
+                                <div className="stat-card-hover" style={{
+                                    background: 'linear-gradient(145deg, #1e1e1e, #252525)',
+                                    padding: '1.5rem',
+                                    borderRadius: '16px',
+                                    border: '1px solid #333',
+                                    borderLeft: '4px solid #3b82f6', // Blue border
+                                    boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
+                                        <h3 style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rata-rata / Struk</h3>
+                                        <div style={{ padding: '8px', background: 'rgba(59, 130, 246, 0.15)', borderRadius: '8px', color: '#3b82f6' }}>
+                                            <TrendingUp size={20} />
+                                        </div>
+                                    </div>
+                                    <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>
+                                        Rp {(dailyTransactions.length > 0 ? dailyTransactions.reduce((acc, curr) => acc + (parseFloat(curr.total_amount) || 0), 0) / dailyTransactions.length : 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}
+                                    </p>
+                                    <small style={{ color: '#666', fontSize: '0.8rem', marginTop: '5px', display: 'block' }}>* Nilai tengah per pesanan</small>
+                                </div>
+                            </div>
+
+                            {/* Chart Section */}
+                            <div style={{ marginBottom: '2.5rem', background: '#1e1e1e', borderRadius: '16px', border: '1px solid #333', padding: '1.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
+                                <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <h3 style={{ margin: 0, color: '#e0e0e0', fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }}>Tren Penjualan</h3>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f97316', display: 'inline-block' }}></span>
+                                        <span style={{ fontSize: '0.8rem', color: '#888' }}>Omset Real-time</span>
+                                    </div>
+                                </div>
+                                <div style={{ width: '100%', height: 300 }}>
+                                    <ResponsiveContainer>
+                                        <AreaChart data={[...dailyTransactions].reverse().map(t => ({
+                                            time: t.created_at ? new Date(t.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-',
+                                            amount: parseFloat(t.total_amount) || 0
+                                        }))}>
+                                            <defs>
+                                                <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                                            <XAxis
+                                                dataKey="time"
+                                                stroke="#666"
+                                                tick={{ fill: '#888', fontSize: 12 }}
+                                                tickLine={false}
+                                                axisLine={false}
+                                            />
+                                            <YAxis
+                                                stroke="#666"
+                                                tick={{ fill: '#888', fontSize: 12 }}
+                                                tickLine={false}
+                                                axisLine={false}
+                                                tickFormatter={(value) => `Rp ${value / 1000}k`}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{ backgroundColor: '#2a2a2a', border: '1px solid #444', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}
+                                                itemStyle={{ color: '#fff' }}
+                                                labelStyle={{ color: '#aaa', marginBottom: '0.5rem' }}
+                                                formatter={(value) => [`Rp ${value.toLocaleString('id-ID')}`, 'Total']}
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="amount"
+                                                stroke="#f97316"
+                                                strokeWidth={3}
+                                                fillOpacity={1}
+                                                fill="url(#colorAmount)"
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* Detailed Table */}
+                            <div style={{ background: '#1e1e1e', borderRadius: '16px', border: '1px solid #333', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+                                <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#252525' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <History size={20} color="#f97316" />
+                                        <h3 style={{ margin: 0, color: 'white', fontSize: '1.1rem' }}>Rincian Transaksi</h3>
+                                    </div>
+                                    <span style={{ fontSize: '0.85rem', color: '#666', background: '#1a1a1a', padding: '5px 12px', borderRadius: '20px' }}>{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                </div>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid #333', background: '#1a1a1a' }}>
+                                            <th style={{ padding: '1.2rem', textAlign: 'left', color: '#888', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '1px', fontWeight: '600' }}>Waktu</th>
+                                            <th style={{ padding: '1.2rem', textAlign: 'left', color: '#888', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '1px', fontWeight: '600' }}>ID Order</th>
+                                            <th style={{ padding: '1.2rem', textAlign: 'center', color: '#888', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '1px', fontWeight: '600' }}>Metode</th>
+                                            <th style={{ padding: '1.2rem', textAlign: 'right', color: '#888', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '1px', fontWeight: '600' }}>Total (Rp)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {dailyTransactions.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="4" style={{ padding: '4rem', textAlign: 'center', color: '#555' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                                                        <Clock size={40} strokeWidth={1} />
+                                                        <span>Belum ada transaksi hari ini.</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            dailyTransactions.map((trx, index) => {
+                                                const safeAmount = parseFloat(trx.total_amount) || 0;
+                                                const safeDate = trx.created_at ? new Date(trx.created_at) : new Date();
+                                                const isEven = index % 2 === 0;
+                                                return (
+                                                    <tr key={trx.id} className="table-row-hover" style={{ borderBottom: '1px solid #2a2a2a', background: isEven ? 'transparent' : 'rgba(255,255,255,0.02)', transition: 'background 0.2s' }}>
+                                                        <td style={{ padding: '1.2rem', color: '#e0e0e0', fontSize: '0.95rem' }}>
+                                                            {safeDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                                        </td>
+                                                        <td style={{ padding: '1.2rem', fontFamily: 'monospace', color: '#888', fontSize: '0.9rem' }}>#{trx.id}</td>
+                                                        <td style={{ padding: '1.2rem', textAlign: 'center' }}>
+                                                            <span style={{
+                                                                padding: '6px 12px',
+                                                                borderRadius: '20px',
+                                                                fontSize: '0.75rem',
+                                                                fontWeight: '600',
+                                                                background: trx.payment_method === 'qris' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                                                                color: trx.payment_method === 'qris' ? '#60a5fa' : '#34d399',
+                                                                border: trx.payment_method === 'qris' ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)'
+                                                            }}>
+                                                                {trx.payment_method === 'qris' ? 'QRIS' : 'TUNAI'}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ padding: '1.2rem', textAlign: 'right', fontWeight: 'bold', color: '#fff', fontSize: '1rem' }}>
+                                                            {safeAmount.toLocaleString('id-ID')}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );
@@ -481,7 +1421,7 @@ const CashierView = ({ user, handleLogout }) => {
 
 // ... (SectionTitle is already defined below)
 
-const generateReceipt = (orderId, items, total, cashierName, paid, change) => {
+const generateReceipt = (orderId, items, total, cashierName, paid, change, orderType) => {
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -498,12 +1438,13 @@ const generateReceipt = (orderId, items, total, cashierName, paid, change) => {
     // Info
     doc.setFontSize(9);
     doc.text(`No Order: #${orderId}`, 5, 25);
-    doc.text(`Tgl: ${new Date().toLocaleDateString()}`, 5, 30);
-    doc.text(`Kasir: ${cashierName}`, 5, 35);
-    doc.text('--------------------------------', 40, 38, { align: 'center' });
+    doc.text(`Type: ${orderType === 'take-away' ? 'BUNGKUS' : 'MAKAN DITEMPAT'}`, 5, 30);
+    doc.text(`Tgl: ${new Date().toLocaleDateString()}`, 5, 35);
+    doc.text(`Kasir: ${cashierName}`, 5, 40);
+    doc.text('--------------------------------', 40, 43, { align: 'center' });
 
     // Items
-    let yPos = 45;
+    let yPos = 50;
     items.forEach(item => {
         const name = item.name.length > 20 ? item.name.substring(0, 20) + '...' : item.name;
         doc.text(name, 5, yPos);

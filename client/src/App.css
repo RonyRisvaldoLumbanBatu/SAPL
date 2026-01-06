@@ -568,3 +568,60 @@ h3 {
   background: var(--surface);
   border-color: var(--primary);
 }
+
+/* 4. Order Type Toggle */
+.order-type-toggle {
+  display: flex;
+  background: var(--dark-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 1rem;
+}
+
+.toggle-option {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+  color: var(--text-muted);
+}
+
+.toggle-option.active {
+  background: var(--primary);
+  color: #000;
+  font-weight: bold;
+}
+
+/* 5. Clear Cart Button */
+.btn-clear-cart {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: auto;
+  /* Push to right */
+}
+
+.btn-clear-cart:hover {
+  background: var(--danger);
+  color: white;
+}
+
+/* 6. SweetAlert2 Glass/Blur Effect */
+div:where(.swal2-container) {
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  /* Slightly transparent dark overlay */
+}

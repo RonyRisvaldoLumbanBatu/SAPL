@@ -198,13 +198,74 @@ app.put('/api/users/:id', requireLogin, async (req, res) => {
 // --- API PRODUK & TRANSAKSI (POS) ---
 
 // GET - Ambil Semua Menu
+// GET - Ambil Semua Menu (Bisa filter aktif/semua)
 app.get('/api/products', requireLogin, async (req, res) => {
   try {
-    const [rows] = await promisePool.execute('SELECT * FROM products WHERE is_available = 1');
+    const showAll = req.query.all === 'true';
+    let query = 'SELECT * FROM products';
+    // Jika tidak minta semua (default kasir), hanya tampilkan yang tersedia
+    if (!showAll) {
+      query += ' WHERE is_available = 1';
+    }
+    query += ' ORDER BY category, name ASC'; // Urutkan biar rapi
+
+    const [rows] = await promisePool.execute(query);
     res.json({ success: true, data: rows });
   } catch (error) {
     console.error('Error fetching products', error);
     res.status(500).json({ success: false, message: 'Gagal ambil menu' });
+  }
+});
+
+// ADMIN: Tambah Menu Baru
+app.post('/api/products', requireLogin, async (req, res) => {
+  const { name, price, category, image, is_available } = req.body;
+
+  if (!name || !price || !category) {
+    return res.status(400).json({ success: false, message: 'Nama, Harga, dan Kategori wajib diisi' });
+  }
+
+  try {
+    const [result] = await promisePool.execute(
+      'INSERT INTO products (name, price, category, image, is_available) VALUES (?, ?, ?, ?, ?)',
+      [name, price, category, image || null, is_available !== undefined ? is_available : 1]
+    );
+    res.json({ success: true, message: 'Menu berhasil ditambahkan', id: result.insertId });
+  } catch (error) {
+    console.error('Error adding product', error);
+    res.status(500).json({ success: false, message: 'Gagal menambah menu' });
+  }
+});
+
+// ADMIN: Update Menu
+app.put('/api/products/:id', requireLogin, async (req, res) => {
+  const { name, price, category, image, is_available } = req.body;
+  const productId = req.params.id;
+
+  try {
+    await promisePool.execute(
+      'UPDATE products SET name = ?, price = ?, category = ?, image = ?, is_available = ? WHERE id = ?',
+      [name, price, category, image, is_available, productId]
+    );
+    res.json({ success: true, message: 'Menu berhasil diupdate' });
+  } catch (error) {
+    console.error('Error updating product', error);
+    res.status(500).json({ success: false, message: 'Gagal update menu' });
+  }
+});
+
+// ADMIN: Hapus Menu (Soft Delete / Hard Delete)
+// Disarankan Soft Delete (is_available=0) jika ingin simpan history, tapi user minta fitur hapus.
+// Kita pakai Hard Delete untuk sekarang, atau Soft Delete. 
+// Kalau Hard Delete, nanti order history yang refer ke sini bisa error jika tidak CASCADE.
+// Aman: Kita pakai Hard Delete tapi proteksi try-catch.
+app.delete('/api/products/:id', requireLogin, async (req, res) => {
+  try {
+    await promisePool.execute('DELETE FROM products WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'Menu berhasil dihapus permanen' });
+  } catch (error) {
+    console.error('Error deleting product', error);
+    res.status(500).json({ success: false, message: 'Gagal hapus (mungkin masih ada di riwayat transaksi)' });
   }
 });
 
@@ -248,7 +309,116 @@ app.post('/api/transactions', requireLogin, async (req, res) => {
   }
 });
 
-// DELETE - Hapus user
+// GET - Ambil Transaksi Hari Ini (Mini Report)
+app.get('/api/transactions/today', requireLogin, async (req, res) => {
+  try {
+    const [rows] = await promisePool.execute(
+      `SELECT id, total_amount, payment_method, created_at 
+       FROM orders 
+       WHERE DATE(created_at) = CURDATE() 
+       ORDER BY id DESC LIMIT 10`
+    );
+    console.log(`Cashier History: Found ${rows.length} transactions for today`);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Error fetching dashboard history:', error);
+    res.status(500).json({ success: false, message: 'Gagal ambil data history' });
+  }
+});
+
+// GET - Admin Dashboard Stats (Ringkasan)
+app.get('/api/admin/stats', requireLogin, async (req, res) => {
+  try {
+    // 1. Omset, Total Transaksi, Rerata Pesanan Hari Ini
+    const [stats] = await promisePool.query(`
+      SELECT 
+        COALESCE(SUM(total_amount), 0) as total_omset,
+        COUNT(*) as total_transaksi,
+        COALESCE(AVG(total_amount), 0) as rerata_pesanan
+      FROM orders 
+      WHERE DATE(created_at) = CURRENT_DATE()
+    `);
+
+    console.log('Stats Result:', stats[0]);
+    const [dbTime] = await promisePool.execute('SELECT NOW() as now, CURDATE() as today');
+    console.log('DB Time Info:', dbTime[0]);
+
+    // 2. Menu Terlaris (Top 1)
+    const [topProduct] = await promisePool.query(`
+      SELECT p.name, SUM(oi.quantity) as total_sold
+      FROM order_items oi
+      JOIN products p ON oi.product_id = p.id
+      JOIN orders o ON oi.order_id = o.id
+      WHERE DATE(o.created_at) = CURRENT_DATE()
+      GROUP BY oi.product_id
+      ORDER BY total_sold DESC
+      LIMIT 1
+    `);
+
+    // 3. Tren Penjualan per Jam (Hari Ini)
+    const [trend] = await promisePool.query(`
+      SELECT 
+        HOUR(created_at) as hour,
+        SUM(total_amount) as sales
+      FROM orders
+      WHERE DATE(created_at) = CURRENT_DATE()
+      GROUP BY HOUR(created_at)
+      ORDER BY hour ASC
+    `);
+
+    // 4. List Top 5 Menu Terlaris
+    const [topList] = await promisePool.query(`
+      SELECT p.name, p.price, SUM(oi.quantity) as sales
+      FROM order_items oi
+      JOIN products p ON oi.product_id = p.id
+      JOIN orders o ON oi.order_id = o.id
+      WHERE DATE(o.created_at) = CURRENT_DATE()
+      GROUP BY oi.product_id
+      ORDER BY sales DESC
+      LIMIT 5
+    `);
+
+    // 5. Rincian Transaksi Terbaru (Limit 10)
+    const [recent] = await promisePool.query(`
+      SELECT id, total_amount, payment_method, created_at 
+      FROM orders 
+      WHERE DATE(created_at) = CURRENT_DATE() 
+      ORDER BY id DESC LIMIT 10
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        summary: stats[0] || { total_omset: 0, total_transaksi: 0, rerata_pesanan: 0 },
+        topProduct: topProduct[0] || { name: '-', total_sold: 0 },
+        trend: trend || [],
+        topList: topList || [],
+        recent: recent || []
+      }
+    });
+
+  } catch (error) {
+    console.error('Admin Stats Error:', error);
+    res.status(500).json({ success: false, message: 'Gagal memuat statistik admin' });
+  }
+});
+
+// GET - Semua Transaksi (Untuk Laporan Admin)
+app.get('/api/admin/transactions', requireLogin, async (req, res) => {
+  try {
+    const [rows] = await promisePool.query(`
+      SELECT o.*, u.username as cashier_name
+      FROM orders o
+      LEFT JOIN users u ON o.user_id = u.id
+      ORDER BY o.created_at DESC
+    `);
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Error fetching all transactions:', error);
+    res.status(500).json({ success: false, message: 'Gagal memuat data transaksi' });
+  }
+});
+
 app.delete('/api/users/:id', requireLogin, async (req, res) => {
   const userId = req.params.id;
 
