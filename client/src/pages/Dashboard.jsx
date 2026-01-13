@@ -399,7 +399,7 @@ const AdminView = ({ user, handleLogout }) => {
                             boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
                         }}>
                             <Clock size={18} color="var(--primary)" />
-                            {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                            {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                     </div>
                 </header>
@@ -1355,12 +1355,12 @@ const CashierView = ({ user, handleLogout }) => {
             <main className="main-content" style={{ padding: '0', position: 'relative', overflow: 'hidden' }}>
 
                 {viewMode === 'pos' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem', height: '100vh', width: '100%' }}>
+                    <div className="pos-layout">
 
                         {/* LEFT: Product Grid */}
-                        <div style={{ padding: '2rem', overflowY: 'auto', height: '100vh' }}>
-                            <header style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
+                        <div className="pos-content">
+                            <header className="pos-header">
+                                <div className="pos-welcome">
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                                         <h1>Halo, {user?.name || 'Kasir'}! 👋</h1>
                                         <div style={{
@@ -1375,28 +1375,20 @@ const CashierView = ({ user, handleLogout }) => {
                                             gap: '8px'
                                         }}>
                                             <Clock size={16} />
-                                            {currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                            {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                         </div>
                                     </div>
                                     <p style={{ color: 'var(--text-muted)' }}>Siap melayani pelanggan?</p>
                                 </div>
 
                                 {/* Search Bar */}
-                                <div className="search-bar" style={{ position: 'relative', width: '300px' }}>
+                                <div className="pos-search">
                                     <input
                                         type="text"
                                         placeholder="Cari menu (cth: Ayam)..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px 10px 10px 20px',
-                                            borderRadius: '12px',
-                                            border: '1px solid var(--border)',
-                                            background: 'var(--dark-surface)',
-                                            color: 'white',
-                                            outline: 'none'
-                                        }}
+                                        className="input-field"
                                     />
                                 </div>
                             </header>
@@ -1411,7 +1403,7 @@ const CashierView = ({ user, handleLogout }) => {
                             {foods.length > 0 && (
                                 <>
                                     <SectionTitle title="Makanan Berat" icon={<Utensils size={18} />} />
-                                    <div className="product-grid">
+                                    <div className="product-grid-container">
                                         {foods.map(product => (
                                             <ProductCard
                                                 key={product.id}
@@ -1427,7 +1419,7 @@ const CashierView = ({ user, handleLogout }) => {
                             {drinks.length > 0 && (
                                 <>
                                     <SectionTitle title="Minuman Segar" icon={<Coffee size={18} />} style={{ marginTop: '2rem' }} />
-                                    <div className="product-grid">
+                                    <div className="product-grid-container">
                                         {drinks.map(product => (
                                             <ProductCard
                                                 key={product.id}
@@ -1443,7 +1435,7 @@ const CashierView = ({ user, handleLogout }) => {
                             {extras.length > 0 && (
                                 <>
                                     <SectionTitle title="Tambahan (Extra)" icon={<Plus size={18} />} style={{ marginTop: '2rem' }} />
-                                    <div className="product-grid">
+                                    <div className="product-grid-container">
                                         {extras.map(product => (
                                             <ProductCard
                                                 key={product.id}
@@ -1551,63 +1543,65 @@ const CashierView = ({ user, handleLogout }) => {
                                 <button onClick={() => setShowPaymentModal(false)}><X size={24} /></button>
                             </div>
 
-                            <div className="payment-summary">
-                                <h3>Total Tagihan</h3>
-                                <div className="big-price">Rp {totalAmount.toLocaleString()}</div>
-                            </div>
-
-                            <div className="payment-methods">
-                                <label className={`method-card ${paymentMethod === 'cash' ? 'active' : ''}`}>
-                                    <input type="radio" name="method" checked={paymentMethod === 'cash'} onChange={() => setPaymentMethod('cash')} />
-                                    <Banknote size={24} />
-                                    <span>Tunai (Cash)</span>
-                                </label>
-                                <label className={`method-card ${paymentMethod === 'qris' ? 'active' : ''}`}>
-                                    <input type="radio" name="method" checked={paymentMethod === 'qris'} onChange={() => setPaymentMethod('qris')} />
-                                    <Wallet size={24} />
-                                    <span>QRIS</span>
-                                </label>
-                            </div>
-
-                            {paymentMethod === 'cash' && (
-                                <div className="input-group" style={{ marginTop: '1.5rem' }}>
-                                    <label>Uang Diterima</label>
-                                    <NumericFormat
-                                        value={cashReceived}
-                                        onValueChange={handleCashInput}
-                                        thousandSeparator="."
-                                        decimalSeparator=","
-                                        prefix="Rp "
-                                        className="input-field big-input"
-                                        placeholder="Rp 0"
-                                        allowNegative={false}
-                                        autoFocus
-                                    />
-
-                                    {/* QUICK CASH BUTTONS */}
-                                    <div className="quick-cash-options">
-                                        <button className="btn-quick-cash" onClick={() => handleCashInput({ floatValue: totalAmount })}>
-                                            Uang Pas (Rp {totalAmount.toLocaleString()})
-                                        </button>
-                                        {[20000, 50000, 100000].map(amount => (
-                                            amount >= totalAmount && (
-                                                <button key={amount} className="btn-quick-cash" onClick={() => handleCashInput({ floatValue: amount })}>
-                                                    Rp {amount.toLocaleString()}
-                                                </button>
-                                            )
-                                        ))}
-                                    </div>
-
-                                    <div className={`change-display ${changeAmount < 0 ? 'minus' : ''}`}>
-                                        <small>Kembalian</small>
-                                        <div>Rp {changeAmount.toLocaleString()}</div>
-                                    </div>
+                            <div className="modal-body">
+                                <div className="payment-summary">
+                                    <h3>Total Tagihan</h3>
+                                    <div className="big-price">Rp {totalAmount.toLocaleString()}</div>
                                 </div>
-                            )}
 
-                            <button className="btn btn-primary full-width" style={{ marginTop: '2rem' }} onClick={processPayment} disabled={loading}>
-                                {loading ? 'Memproses...' : 'Selesaikan Transaksi & Cetak'}
-                            </button>
+                                <div className="payment-methods">
+                                    <label className={`method-card ${paymentMethod === 'cash' ? 'active' : ''}`}>
+                                        <input type="radio" name="method" checked={paymentMethod === 'cash'} onChange={() => setPaymentMethod('cash')} />
+                                        <Banknote size={24} />
+                                        <span>Tunai (Cash)</span>
+                                    </label>
+                                    <label className={`method-card ${paymentMethod === 'qris' ? 'active' : ''}`}>
+                                        <input type="radio" name="method" checked={paymentMethod === 'qris'} onChange={() => setPaymentMethod('qris')} />
+                                        <Wallet size={24} />
+                                        <span>QRIS</span>
+                                    </label>
+                                </div>
+
+                                {paymentMethod === 'cash' && (
+                                    <div className="input-group" style={{ marginTop: '1.5rem' }}>
+                                        <label>Uang Diterima</label>
+                                        <NumericFormat
+                                            value={cashReceived}
+                                            onValueChange={handleCashInput}
+                                            thousandSeparator="."
+                                            decimalSeparator=","
+                                            prefix="Rp "
+                                            className="input-field big-input"
+                                            placeholder="Rp 0"
+                                            allowNegative={false}
+                                            autoFocus
+                                        />
+
+                                        {/* QUICK CASH BUTTONS */}
+                                        <div className="quick-cash-options">
+                                            <button className="btn-quick-cash" onClick={() => handleCashInput({ floatValue: totalAmount })}>
+                                                Uang Pas (Rp {totalAmount.toLocaleString()})
+                                            </button>
+                                            {[20000, 50000, 100000].map(amount => (
+                                                amount >= totalAmount && (
+                                                    <button key={amount} className="btn-quick-cash" onClick={() => handleCashInput({ floatValue: amount })}>
+                                                        Rp {amount.toLocaleString()}
+                                                    </button>
+                                                )
+                                            ))}
+                                        </div>
+
+                                        <div className={`change-display ${changeAmount < 0 ? 'minus' : ''}`}>
+                                            <small>Kembalian</small>
+                                            <div>Rp {changeAmount.toLocaleString()}</div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button className="btn btn-primary full-width" style={{ marginTop: '2rem', width: '100%', padding: '14px', fontSize: '1.1rem' }} onClick={processPayment} disabled={loading}>
+                                    {loading ? 'Memproses...' : 'Selesaikan Transaksi & Cetak'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
