@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import '../App.css';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, Plus, Minus, Utensils, Coffee, CreditCard, LogOut, X, Wallet, Banknote, Grid, History, Clock, DollarSign, Receipt, TrendingUp, Calendar, LayoutDashboard, UtensilsCrossed, Users, Search, Edit, CheckCircle, XCircle, Image as ImageIcon } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Utensils, Coffee, CreditCard, LogOut, X, Wallet, Banknote, Grid, History, Clock, DollarSign, Receipt, TrendingUp, Calendar, LayoutDashboard, UtensilsCrossed, Users, Search, Edit, CheckCircle, XCircle, Image as ImageIcon, ChevronDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { NumericFormat } from 'react-number-format';
@@ -75,6 +75,7 @@ const AdminView = ({ user, handleLogout }) => {
         topList: [],
         recent: []
     });
+    const [availableImages, setAvailableImages] = useState([]);
     const [allTransactions, setAllTransactions] = useState([]);
     const [lastUpdated, setLastUpdated] = useState(null);
 
@@ -109,6 +110,93 @@ const AdminView = ({ user, handleLogout }) => {
         }
     };
 
+
+    // --- STAFF MANAGEMENT STATE ---
+    const [staffList, setStaffList] = useState([]);
+    const [showStaffModal, setShowStaffModal] = useState(false);
+    const [editingStaff, setEditingStaff] = useState(null);
+    const [staffFormData, setStaffFormData] = useState({ name: '', username: '', password: '', role: 'kasir' });
+
+    const fetchStaff = async () => {
+        setLoading(true);
+        try {
+            const res = await axios.get('/api/users');
+            if (res.data.success) {
+                setStaffList(res.data.data);
+            }
+        } catch (error) {
+            Swal.fire('Error', 'Gagal memuat data staff', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+
+    const handleSaveStaff = async (e) => {
+        e.preventDefault();
+        // Ensure role is set to 'kasir' if empty, though state initializes it.
+        const dataToSend = { ...staffFormData, role: staffFormData.role || 'kasir' };
+
+        if (!dataToSend.name || !dataToSend.username || (!editingStaff && !dataToSend.password)) {
+            return Swal.fire('Error', 'Mohon lengkapi data', 'error');
+        }
+
+        try {
+            if (editingStaff) {
+                await axios.put(`/api/users/${editingStaff.id}`, dataToSend);
+                Swal.fire('Sukses', 'Data staff diperbarui', 'success');
+            } else {
+                await axios.post('/api/users', staffFormData);
+                Swal.fire('Sukses', 'Staff baru berhasil ditambahkan', 'success');
+            }
+            setShowStaffModal(false);
+            setEditingStaff(null);
+            fetchStaff();
+            setStaffFormData({ name: '', username: '', password: '', role: 'kasir' });
+        } catch (error) {
+            Swal.fire('Error', error.response?.data?.message || 'Gagal menyimpan data', 'error');
+        }
+    };
+
+    const handleDeleteStaff = async (id) => {
+        const result = await Swal.fire({
+            title: 'Hapus Staff?',
+            text: "Akun ini tidak akan bisa login lagi!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'Ya, Hapus!'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                await axios.delete(`/api/users/${id}`);
+                Swal.fire('Terhapus!', 'Akun staff telah dihapus.', 'success');
+                fetchStaff();
+            } catch (error) {
+                Swal.fire('Gagal', error.response?.data?.message || 'Gagal menghapus staff', 'error');
+            }
+        }
+    };
+
+    const openAddStaffModal = () => {
+        setEditingStaff(null);
+        setStaffFormData({ name: '', username: '', password: '', role: 'kasir' });
+        setShowStaffModal(true);
+    };
+
+    const openEditStaffModal = (staff) => {
+        setEditingStaff(staff);
+        setStaffFormData({ 
+            name: staff.name, 
+            username: staff.username, 
+            password: '', 
+            role: staff.role || 'kasir' 
+        });
+        setShowStaffModal(true);
+    };
+
     // Form State
     const [formData, setFormData] = useState({
         name: '',
@@ -125,6 +213,8 @@ const AdminView = ({ user, handleLogout }) => {
             fetchAdminStats();
         } else if (activeTab === 'reports') {
             fetchAllTransactions();
+        } else if (activeTab === 'staff') {
+            fetchStaff();
         }
     }, [activeTab]);
 
@@ -144,14 +234,26 @@ const AdminView = ({ user, handleLogout }) => {
 
     const handleSave = async (e) => {
         e.preventDefault();
-        if (!formData.name || !formData.price) return;
+        if (!formData.name || !formData.price || !formData.category) return;
+
+        const data = new FormData();
+        data.append('name', formData.name);
+        data.append('price', formData.price);
+        data.append('category', formData.category);
+        data.append('is_available', formData.is_available);
+        
+        if (formData.file) {
+            data.append('image', formData.file);
+        }
 
         try {
+            const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+            
             if (editingProduct) {
-                await axios.put(`/api/products/${editingProduct.id}`, formData);
+                await axios.put(`/api/products/${editingProduct.id}`, data, config);
                 Swal.fire('Sukses', 'Menu berhasil diupdate', 'success');
             } else {
-                await axios.post('/api/products', formData);
+                await axios.post('/api/products', data, config);
                 Swal.fire('Sukses', 'Menu baru berhasil ditambahkan', 'success');
             }
             setShowModal(false);
@@ -159,6 +261,7 @@ const AdminView = ({ user, handleLogout }) => {
             fetchProducts();
             resetForm();
         } catch (error) {
+            console.error(error);
             Swal.fire('Error', 'Gagal menyimpan menu', 'error');
         }
     };
@@ -184,6 +287,26 @@ const AdminView = ({ user, handleLogout }) => {
         }
     };
 
+    const resetForm = () => {
+        setFormData({ name: '', price: '', category: 'Makanan', image: '', file: null, is_available: 1 });
+    };
+
+    const fetchImages = async () => {
+        try {
+            const res = await axios.get('/api/products/images');
+            setAvailableImages(res.data || []);
+        } catch (error) {
+            console.error('Gagal ambil gambar', error);
+        }
+    };
+
+    const openAddModal = () => {
+        setEditingProduct(null);
+        resetForm();
+        fetchImages(); // Load images when opening modal
+        setShowModal(true);
+    };
+
     const openEditModal = (product) => {
         setEditingProduct(product);
         setFormData({
@@ -193,17 +316,8 @@ const AdminView = ({ user, handleLogout }) => {
             image: product.image || '',
             is_available: product.is_available
         });
+        fetchImages();
         setShowModal(true);
-    };
-
-    const openAddModal = () => {
-        setEditingProduct(null);
-        resetForm();
-        setShowModal(true);
-    };
-
-    const resetForm = () => {
-        setFormData({ name: '', price: '', category: 'makanan', image: '', is_available: 1 });
     };
 
     const filteredProducts = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -229,7 +343,7 @@ const AdminView = ({ user, handleLogout }) => {
                             { id: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard },
                             { id: 'reports', label: 'Laporan Penjualan', icon: History },
                             { id: 'menu', label: 'Manajemen Menu', icon: UtensilsCrossed },
-                            { id: 'staff', label: 'Staff (Soon)', icon: Users, disabled: true }
+                            { id: 'staff', label: 'Manajemen Staff', icon: Users }
                         ].map(item => (
                             <li
                                 key={item.id}
@@ -264,7 +378,11 @@ const AdminView = ({ user, handleLogout }) => {
                 <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
                     <div>
                         <h1 style={{ fontSize: '2.5rem', margin: '0 0 0.5rem 0', fontWeight: 'bold' }}>Halo, Rony! 👋</h1>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>{activeTab === 'dashboard' ? 'Pantau performa bisnis Anda hari ini.' : 'Kelola daftar menu restoran Anda.'}</p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>
+                            {activeTab === 'dashboard' ? 'Pantau performa bisnis Anda hari ini.' : 
+                             activeTab === 'menu' ? 'Kelola daftar menu restoran Anda.' : 
+                             activeTab === 'staff' ? 'Kelola akun kasir restoran.' : 'Laporan penjualan lengkap.'}
+                        </p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                         <div style={{
@@ -570,7 +688,7 @@ const AdminView = ({ user, handleLogout }) => {
                                         <tr key={product.id} className="table-row-hover" style={{ borderBottom: '1px solid #2a2a2a', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
                                             <td style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '20px' }}>
                                                 <div style={{ width: '60px', height: '60px', background: '#2a2a2a', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
-                                                    {product.image ? <img src={`/assets/images/${product.image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <ImageIcon size={24} style={{ margin: '18px', color: '#444' }} />}
+                                                    {product.image ? <img src={`/images/${product.image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <ImageIcon size={24} style={{ margin: '18px', color: '#444' }} />}
                                                 </div>
                                                 <span style={{ fontWeight: '600', fontSize: '1rem', color: '#e0e0e0' }}>{product.name}</span>
                                             </td>
@@ -594,73 +712,382 @@ const AdminView = ({ user, handleLogout }) => {
                             </table>
                         </div>
                     </div>
-                )
-                }
+                )}
+                
+                {activeTab === 'staff' && (
+                    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
+                            <div>
+                                <h2 style={{ color: 'white', margin: 0 }}>Kelola Staff</h2>
+                                <p style={{ color: '#888', margin: '5px 0 0 0' }}>Tambah atau edit akun untuk kasir dan admin.</p>
+                            </div>
+                            <button onClick={openAddStaffModal} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f97316', color: 'white', border: 'none', padding: '0 25px', borderRadius: '12px', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(249, 115, 22, 0.3)', cursor: 'pointer', fontSize: '1rem' }}>
+                                <Plus size={20} /> Tambah Staff
+                            </button>
+                        </div>
+
+                        <div style={{ background: '#1e1e1e', borderRadius: '20px', overflow: 'hidden', border: '1px solid #333', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead style={{ background: '#252525', borderBottom: '1px solid #333' }}>
+                                    <tr>
+                                        <th style={{ padding: '20px', textAlign: 'left', color: '#888', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>Nama</th>
+                                        <th style={{ padding: '20px', textAlign: 'left', color: '#888', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>Username</th>
+                                        <th style={{ padding: '20px', textAlign: 'left', color: '#888', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>Role</th>
+                                        <th style={{ padding: '20px', textAlign: 'right', color: '#888', textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '1px' }}>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {staffList.map((staff, idx) => (
+                                        <tr key={staff.id} className="table-row-hover" style={{ borderBottom: '1px solid #2a2a2a', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                                            <td style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: staff.role === 'admin' ? '#f97316' : '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                                                    {staff.name ? staff.name.charAt(0).toUpperCase() : (staff.username ? staff.username.charAt(0).toUpperCase() : '?')}
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: '600', color: '#e0e0e0', fontSize: '0.95rem' }}>{staff.name || 'Tanpa Nama'}</div>
+                                                    <div style={{ color: '#888', fontSize: '0.8rem' }}>ID: {staff.id}</div>
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '15px 20px', color: '#ccc', fontFamily: 'monospace' }}>@{staff.username}</td>
+                                            <td style={{ padding: '15px 20px' }}>
+                                                <span style={{ 
+                                                    padding: '6px 14px', 
+                                                    borderRadius: '20px', 
+                                                    background: (staff.role || 'kasir') === 'admin' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(59, 130, 246, 0.15)', 
+                                                    color: (staff.role || 'kasir') === 'admin' ? '#f97316' : '#3b82f6', 
+                                                    fontSize: '0.8rem', 
+                                                    fontWeight: '600',
+                                                    textTransform: 'uppercase',
+                                                    border: `1px solid ${(staff.role || 'kasir') === 'admin' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)'}`,
+                                                    letterSpacing: '0.5px'
+                                                }}>
+                                                    {staff.role || 'KASIR'}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '15px 20px', textAlign: 'right' }}>
+                                                <button onClick={() => openEditStaffModal(staff)} style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.15)', border: 'none', color: '#3b82f6', marginRight: '8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} title="Edit"><Edit size={18} /></button>
+                                                {user.id !== staff.id && (
+                                                    <button onClick={() => handleDeleteStaff(staff.id)} style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} title="Hapus"><Trash2 size={18} /></button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
 
                 {/* Modular Add/Edit Product Modal */}
                 {
                     showModal && (
                         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                            <div style={{ background: '#1e1e1e', padding: '30px', borderRadius: '20px', width: '500px', border: '1px solid #333', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', animation: 'slideUp 0.3s ease' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-                                    <h2 style={{ color: 'white', fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
-                                        {editingProduct ? <Edit size={24} color="#3b82f6" /> : <Plus size={24} color="#f97316" />}
-                                        {editingProduct ? 'Edit Menu Item' : 'Tambah Menu Baru'}
+                            <div style={{ background: '#18181b', padding: '30px', borderRadius: '24px', width: '500px', maxHeight: '90vh', overflowY: 'auto', border: '1px solid #27272a', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                                <style>
+                                    {`
+                                        input[type=number]::-webkit-inner-spin-button, 
+                                        input[type=number]::-webkit-outer-spin-button { 
+                                            -webkit-appearance: none; 
+                                            margin: 0; 
+                                        }
+                                    `}
+                                </style>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                                    <h2 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '12px', margin: 0, letterSpacing: '-0.5px' }}>
+                                        {editingProduct ? <div style={{padding: '8px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px'}}><Edit size={20} color="#3b82f6" /></div> : <div style={{padding: '8px', background: 'rgba(249, 115, 22, 0.1)', borderRadius: '12px'}}><Plus size={20} color="#f97316" /></div>}
+                                        {editingProduct ? 'Edit Menu' : 'Tambah Menu Baru'}
                                     </h2>
-                                    <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer' }}><X size={24} /></button>
+                                    <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', padding: '5px', borderRadius: '50%', transition: 'all 0.2s', display: 'flex' }} onMouseOver={(e) => e.target.style.color = '#fff'} onMouseOut={(e) => e.target.style.color = '#71717a'}><X size={22} /></button>
                                 </div>
 
                                 <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    {/* Name Input */}
                                     <div>
-                                        <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '0.9rem' }}>Nama Menu</label>
-                                        <input type="text" placeholder="Contoh: Nasi Goreng Spesial" className="input-field" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required style={{ width: '100%', padding: '12px 15px', background: '#252525', border: '1px solid #333', borderRadius: '10px', color: 'white', outline: 'none' }} />
+                                        <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Nama Menu</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Contoh: Nasi Goreng Spesial" 
+                                            className="input-field" 
+                                            value={formData.name} 
+                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
+                                            required 
+                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }} 
+                                            onFocus={(e) => e.target.style.borderColor = '#f97316'}
+                                            onBlur={(e) => e.target.style.borderColor = '#3f3f46'}
+                                        />
                                     </div>
+                                    
+                                    {/* Price & Category */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                                         <div>
-                                            <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '0.9rem' }}>Harga</label>
-                                            <NumericFormat
-                                                value={formData.price}
-                                                onValueChange={(v) => setFormData({ ...formData, price: v.floatValue })}
-                                                thousandSeparator="."
-                                                prefix="Rp "
-                                                className="input-field"
-                                                required
-                                                style={{ width: '100%', padding: '12px 15px', background: '#252525', border: '1px solid #333', borderRadius: '10px', color: 'white', outline: 'none' }}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '0.9rem' }}>Kategori</label>
-                                            <select className="input-field" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} style={{ width: '100%', padding: '12px 15px', background: '#252525', border: '1px solid #333', borderRadius: '10px', color: 'white', outline: 'none', cursor: 'pointer' }}>
-                                                <option value="makanan">Makanan</option>
-                                                <option value="minuman">Minuman</option>
-                                                <option value="snack">Camilan</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', color: '#888', marginBottom: '8px', fontSize: '0.9rem' }}>Gambar (Nama File)</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <input type="text" placeholder="image.jpg" className="input-field" value={formData.image} onChange={(e) => setFormData({ ...formData, image: e.target.value })} style={{ width: '100%', padding: '12px 15px', background: '#252525', border: '1px solid #333', borderRadius: '10px', color: 'white', outline: 'none' }} />
-                                            <div style={{ width: '45px', height: '45px', background: '#2a2a2a', borderRadius: '8px', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <ImageIcon size={20} color="#666" />
+                                            <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Harga</label>
+                                            <div 
+                                                style={{ 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    background: '#27272a', 
+                                                    border: '1px solid #3f3f46', 
+                                                    borderRadius: '12px', 
+                                                    padding: '0 16px', 
+                                                    transition: 'border-color 0.2s'
+                                                }}
+                                                onFocus={(e) => e.currentTarget.style.borderColor = '#f97316'}
+                                                onBlur={(e) => e.currentTarget.style.borderColor = '#3f3f46'}
+                                                tabIndex={-1} 
+                                            >
+                                                <span style={{ color: '#a1a1aa', marginRight: '8px', fontWeight: '500' }}>Rp</span>
+                                                <input
+                                                    type="number"
+                                                    placeholder="0"
+                                                    value={formData.price}
+                                                    onChange={(e) => setFormData({ ...formData, price: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                                                    required
+                                                    style={{ 
+                                                        width: '100%', 
+                                                        padding: '14px 0', 
+                                                        background: 'transparent', 
+                                                        border: 'none', 
+                                                        color: 'white', 
+                                                        outline: 'none', 
+                                                        fontSize: '0.95rem' 
+                                                    }}
+                                                />
                                             </div>
                                         </div>
-                                        <small style={{ color: '#555', marginTop: '5px', display: 'block' }}>*Pastikan file ada di folder public/assets/images</small>
+                                        <div>
+                                            <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Kategori</label>
+                                            <div style={{ position: 'relative' }}>
+                                                <select 
+                                                    value={formData.category} 
+                                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })} 
+                                                    style={{ 
+                                                        width: '100%', 
+                                                        padding: '14px 16px', 
+                                                        paddingRight: '40px', // Space for arrow
+                                                        background: '#27272a', 
+                                                        border: '1px solid #3f3f46', 
+                                                        borderRadius: '12px', 
+                                                        color: 'white', 
+                                                        outline: 'none', 
+                                                        cursor: 'pointer', 
+                                                        fontSize: '0.95rem', 
+                                                        appearance: 'none',
+                                                        WebkitAppearance: 'none',
+                                                        MozAppearance: 'none'
+                                                    }}
+                                                    onFocus={(e) => e.target.style.borderColor = '#f97316'}
+                                                    onBlur={(e) => e.target.style.borderColor = '#3f3f46'}
+                                                >
+                                                    <option value="makanan">Makanan</option>
+                                                    <option value="minuman">Minuman</option>
+                                                    <option value="extra">Extra</option>
+                                                </select>
+                                                <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                                                    <ChevronDown size={20} color="#a1a1aa" />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
-                                        <input
-                                            type="checkbox"
-                                            id="isAvailable"
-                                            checked={formData.is_available === 1}
-                                            onChange={(e) => setFormData({ ...formData, is_available: e.target.checked ? 1 : 0 })}
-                                            style={{ width: '18px', height: '18px', accentColor: '#10b981', cursor: 'pointer' }}
-                                        />
-                                        <label htmlFor="isAvailable" style={{ color: '#ccc', cursor: 'pointer', userSelect: 'none' }}>Tersedia untuk dipesan</label>
+
+                                    {/* Image Upload */}
+                                    <div>
+                                        <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Foto Menu</label>
+                                        
+                                        <div 
+                                            style={{ 
+                                                border: '2px dashed #52525b', 
+                                                borderRadius: '16px', 
+                                                padding: '24px', 
+                                                background: 'rgba(39, 39, 42, 0.5)', 
+                                                textAlign: 'center', 
+                                                position: 'relative',
+                                                transition: 'all 0.2s',
+                                                cursor: 'pointer'
+                                            }}
+                                            onMouseOver={(e) => {
+                                                e.currentTarget.style.borderColor = '#f97316';
+                                                e.currentTarget.style.background = 'rgba(249, 115, 22, 0.05)';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.currentTarget.style.borderColor = '#52525b';
+                                                e.currentTarget.style.background = 'rgba(39, 39, 42, 0.5)';
+                                            }}
+                                        >
+                                            <input 
+                                                type="file" 
+                                                accept="image/*" 
+                                                id="imageUpload" 
+                                                style={{ display: 'none' }} 
+                                                onChange={(e) => {
+                                                    const file = e.target.files[0];
+                                                    if (file) {
+                                                        setFormData({ ...formData, file: file });
+                                                    }
+                                                }}
+                                            />
+                                            
+                                            {/* Preview Logic */}
+                                            {(formData.file || formData.image) ? (
+                                                <div style={{ position: 'relative' }}>
+                                                    <div style={{ 
+                                                        height: '160px', 
+                                                        width: '100%', 
+                                                        background: '#1f1f22', 
+                                                        borderRadius: '12px', 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        justifyContent: 'center',
+                                                        overflow: 'hidden',
+                                                        border: '1px solid #3f3f46'
+                                                    }}>
+                                                        <img 
+                                                            src={formData.file ? URL.createObjectURL(formData.file) : `/images/${formData.image}`} 
+                                                            alt="Preview" 
+                                                            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                                                        />
+                                                    </div>
+                                                    <label 
+                                                        htmlFor="imageUpload" 
+                                                        style={{ 
+                                                            display: 'inline-block', 
+                                                            marginTop: '12px', 
+                                                            color: '#f97316', 
+                                                            cursor: 'pointer', 
+                                                            fontWeight: '600', 
+                                                            fontSize: '0.85rem',
+                                                            padding: '6px 16px',
+                                                            borderRadius: '20px',
+                                                            background: 'rgba(249, 115, 22, 0.1)',
+                                                            border: '1px solid rgba(249, 115, 22, 0.2)',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseOver={(e) => e.target.style.background = 'rgba(249, 115, 22, 0.2)'}
+                                                        onMouseOut={(e) => e.target.style.background = 'rgba(249, 115, 22, 0.1)'}
+                                                    >
+                                                        Ganti Foto
+                                                    </label>
+                                                </div>
+                                            ) : (
+                                                <label htmlFor="imageUpload" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '10px' }}>
+                                                    <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#3f3f46', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.2)' }}>
+                                                        <Plus size={28} color="#f97316" />
+                                                    </div>
+                                                    <div style={{textAlign: 'center'}}>
+                                                        <span style={{ color: '#e4e4e7', fontWeight: '500', display: 'block', marginBottom: '4px' }}>Klik untuk upload foto</span>
+                                                        <span style={{ color: '#a1a1aa', fontSize: '0.75rem' }}>Format: JPG, PNG, WEBP (Max 2MB)</span>
+                                                    </div>
+                                                </label>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
-                                        <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" style={{ flex: 1, padding: '12px', background: '#333', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>Batal</button>
-                                        <button type="submit" className="btn-primary" style={{ flex: 2, padding: '12px', background: editingProduct ? '#3b82f6' : '#f97316', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', boxShadow: editingProduct ? '0 4px 15px rgba(59, 130, 246, 0.3)' : '0 4px 15px rgba(249, 115, 22, 0.3)' }}>
+
+                                    {/* Status Switch & Buttons */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '5px' }}>
+                                        <div 
+                                            style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                                            onClick={() => setFormData(prev => ({ ...prev, is_available: prev.is_available === 1 ? 0 : 1 }))}
+                                        >
+                                            <div style={{
+                                                width: '48px',
+                                                height: '26px',
+                                                background: formData.is_available === 1 ? '#10b981' : '#3f3f46',
+                                                borderRadius: '50px',
+                                                position: 'relative',
+                                                transition: 'background 0.3s ease'
+                                            }}>
+                                                <div style={{
+                                                    width: '20px',
+                                                    height: '20px',
+                                                    background: 'white',
+                                                    borderRadius: '50%',
+                                                    position: 'absolute',
+                                                    top: '3px',
+                                                    left: formData.is_available === 1 ? '25px' : '3px',
+                                                    transition: 'left 0.3s ease',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                                }} />
+                                            </div>
+                                            <label style={{ color: '#e4e4e7', cursor: 'pointer', userSelect: 'none', fontWeight: '500', fontSize: '0.9rem' }}>
+                                                {formData.is_available === 1 ? 'Tersedia' : 'Habis'}
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+                                        <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" style={{ flex: 1, padding: '14px', background: '#3f3f46', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', fontSize: '0.95rem', transition: 'background 0.2s' }} onMouseOver={(e) => e.target.style.background = '#52525b'} onMouseOut={(e) => e.target.style.background = '#3f3f46'}>Batal</button>
+                                        <button type="submit" className="btn-primary" style={{ flex: 2, padding: '14px', background: editingProduct ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', fontSize: '0.95rem', boxShadow: editingProduct ? '0 4px 20px rgba(59, 130, 246, 0.4)' : '0 4px 20px rgba(249, 115, 22, 0.4)', transition: 'transform 0.1s' }} onMouseDown={(e) => e.target.style.transform = 'scale(0.98)'} onMouseUp={(e) => e.target.style.transform = 'scale(1)'}>
                                             {editingProduct ? 'Simpan Perubahan' : 'Tambah Menu'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )
+                }
+
+                {/* Staff Modal */}
+                {
+                    showStaffModal && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                            <div style={{ background: '#18181b', padding: '35px', borderRadius: '24px', width: '450px', border: '1px solid #27272a', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                                    <h2 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '12px', margin: 0, letterSpacing: '-0.5px' }}>
+                                        {editingStaff ? <div style={{padding: '8px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px'}}><Edit size={20} color="#3b82f6" /></div> : <div style={{padding: '8px', background: 'rgba(249, 115, 22, 0.1)', borderRadius: '12px'}}><Plus size={20} color="#f97316" /></div>}
+                                        {editingStaff ? 'Edit Staff' : 'Tambah Staff Baru'}
+                                    </h2>
+                                    <button onClick={() => setShowStaffModal(false)} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', padding: '5px', borderRadius: '50%', transition: 'all 0.2s', display: 'flex' }} onMouseOver={(e) => e.target.style.color = '#fff'} onMouseOut={(e) => e.target.style.color = '#71717a'}><X size={22} /></button>
+                                </div>
+
+                                <form onSubmit={handleSaveStaff} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Nama Lengkap</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Nama Staff" 
+                                            className="input-field" 
+                                            value={staffFormData.name} 
+                                            onChange={(e) => setStaffFormData({ ...staffFormData, name: e.target.value })} 
+                                            required 
+                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }} 
+                                            onFocus={(e) => e.target.style.borderColor = '#f97316'}
+                                            onBlur={(e) => e.target.style.borderColor = '#3f3f46'}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Username Login</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Username" 
+                                            className="input-field" 
+                                            value={staffFormData.username} 
+                                            onChange={(e) => setStaffFormData({ ...staffFormData, username: e.target.value })} 
+                                            required 
+                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }} 
+                                            onFocus={(e) => e.target.style.borderColor = '#f97316'}
+                                            onBlur={(e) => e.target.style.borderColor = '#3f3f46'}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>{editingStaff ? 'Password Baru (Opsional)' : 'Password'}</label>
+                                        <input 
+                                            type="password" 
+                                            placeholder={editingStaff ? "Biarkan kosong jika tidak diubah" : "Password"}
+                                            className="input-field" 
+                                            value={staffFormData.password} 
+                                            onChange={(e) => setStaffFormData({ ...staffFormData, password: e.target.value })} 
+                                            required={!editingStaff}
+                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }} 
+                                            onFocus={(e) => e.target.style.borderColor = '#f97316'}
+                                            onBlur={(e) => e.target.style.borderColor = '#3f3f46'}
+                                        />
+                                    </div>
+                                    {/* Role Selection Removed - Default to Kasir */}
+                                    <input type="hidden" value={staffFormData.role} />
+
+                                    <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+                                        <button type="button" onClick={() => setShowStaffModal(false)} className="btn-secondary" style={{ flex: 1, padding: '14px', background: '#3f3f46', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', fontSize: '0.95rem', transition: 'background 0.2s' }} onMouseOver={(e) => e.target.style.background = '#52525b'} onMouseOut={(e) => e.target.style.background = '#3f3f46'}>Batal</button>
+                                        <button type="submit" className="btn-primary" style={{ flex: 2, padding: '14px', background: editingStaff ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', fontSize: '0.95rem', boxShadow: editingStaff ? '0 4px 20px rgba(59, 130, 246, 0.4)' : '0 4px 20px rgba(249, 115, 22, 0.4)', transition: 'transform 0.1s' }} onMouseDown={(e) => e.target.style.transform = 'scale(0.98)'} onMouseUp={(e) => e.target.style.transform = 'scale(1)'}>
+                                            {editingStaff ? 'Simpan Perubahan' : 'Tambah Staff'}
                                         </button>
                                     </div>
                                 </form>
@@ -1491,16 +1918,20 @@ const generateReceipt = (orderId, items, total, cashierName, paid, change, order
 };
 
 const ProductCard = ({ product, onClick, quantity }) => (
-    <div className="product-card" onClick={onClick}>
+    <div className="product-card" onClick={onClick} style={{ overflow: 'hidden' }}>
         {quantity > 0 && (
             <div className="product-qty-badge">{quantity}</div>
         )}
-        <div className="product-image-placeholder">
-            {product.category === 'Minuman' ? '🥤' : '🍗'}
+        <div className="product-image-container" style={{ width: '100%', height: '120px', background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            {product.image ? (
+                <img src={`/images/${product.image}`} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+                <span style={{ fontSize: '3rem' }}>{product.category === 'Minuman' ? '🥤' : '🍗'}</span>
+            )}
         </div>
-        <div className="product-details">
-            <h4>{product.name}</h4>
-            <p className="price">Rp {parseInt(product.price).toLocaleString()}</p>
+        <div className="product-details" style={{ padding: '12px' }}>
+            <h4 style={{ margin: '0 0 5px 0', fontSize: '0.95rem' }}>{product.name}</h4>
+            <p className="price" style={{ margin: 0, color: 'var(--primary)', fontWeight: 'bold' }}>Rp {parseInt(product.price).toLocaleString()}</p>
         </div>
     </div>
 );

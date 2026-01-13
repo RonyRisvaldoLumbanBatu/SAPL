@@ -1,9 +1,23 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const { promisePool, testConnection } = require('./config/database');
 const session = require('express-session');
+const multer = require('multer');
+
+// Configure Multer for Image Upload
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'client/public/images');
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage: storage });
 
 app.use(express.json());
 
@@ -25,6 +39,8 @@ const requireLogin = (req, res, next) => {
   }
   next();
 };
+
+
 
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
@@ -94,45 +110,7 @@ app.get('/api/check-session', (req, res) => {
 
 // Routes for HTML pages removed - Frontend handles routing now
 
-app.post('/api/users', requireLogin, async (req, res) => {
-  const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res.status(200).json({ success: false, message: 'Semua field wajib diisi' });
-  }
-
-  try {
-    const [existing] = await promisePool.execute('SELECT id FROM users WHERE username = ?', [username]);
-
-    if (existing.length > 0) {
-      return res.status(400).json({ success: false, message: 'Username sudah digunakan' });
-    }
-
-    const [result] = await promisePool.execute(
-      'INSERT INTO users (username, password) VALUES (?, ?)',
-      [username, password]
-    );
-
-    res.json({
-      success: true,
-      message: 'User berhasil ditambahkan',
-      data: { id: result.insertId, username }
-    });
-  } catch (error) {
-    console.error('Error creating user', error);
-    res.status(500).json({ success: false, message: 'Gagal menambahkan pengguna' });
-  }
-});
-
-app.get('/api/users', requireLogin, async (req, res) => {
-  try {
-    const [rows] = await promisePool.execute('SELECT id, username, password FROM users ORDER BY id DESC');
-    res.json({ success: true, data: rows });
-  } catch (error) {
-    console.error('Error fetching users', error);
-    res.status(500).json({ success: false, message: 'Gagal mengambil data pengguna' });
-  }
-});
 
 // GET - Ambil data user berdasarkan ID
 app.get('/api/users/:id', requireLogin, async (req, res) => {
@@ -151,51 +129,23 @@ app.get('/api/users/:id', requireLogin, async (req, res) => {
 });
 
 // PUT - Update user
-app.put('/api/users/:id', requireLogin, async (req, res) => {
-  const { username, password } = req.body;
-  const userId = req.params.id;
 
-  if (!username) {
-    return res.status(400).json({ success: false, message: 'Username wajib diisi' });
-  }
-
-  try {
-    // Cek apakah username sudah digunakan oleh user lain
-    const [existing] = await promisePool.execute(
-      'SELECT id FROM users WHERE username = ? AND id != ?',
-      [username, userId]
-    );
-
-    if (existing.length > 0) {
-      return res.status(400).json({ success: false, message: 'Username sudah digunakan oleh user lain' });
-    }
-
-    // Update dengan atau tanpa password
-    let query, params;
-    if (password && password.trim() !== '') {
-      query = 'UPDATE users SET username = ?, password = ? WHERE id = ?';
-      params = [username, password, userId];
-    } else {
-      query = 'UPDATE users SET username = ? WHERE id = ?';
-      params = [username, userId];
-    }
-
-    const [result] = await promisePool.execute(query, params);
-
-    if (result.affectedRows > 0) {
-      res.json({ success: true, message: 'User berhasil diupdate' });
-    } else {
-      res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-    }
-  } catch (error) {
-    console.error('Error updating user:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengupdate user' });
-  }
-});
 
 
 // DELETE - Hapus user
 // --- API PRODUK & TRANSAKSI (POS) ---
+
+// GET - List Gambar
+app.get('/api/products/images', (req, res) => {
+  const imagesDir = path.join(__dirname, 'client/public/images');
+  fs.readdir(imagesDir, (err, files) => {
+    if (err) {
+      return res.json([]);
+    }
+    const images = files.filter(f => /\.(jpg|jpeg|png|gif|webp|avif)$/i.test(f));
+    res.json(images);
+  });
+});
 
 // GET - Ambil Semua Menu
 // GET - Ambil Semua Menu (Bisa filter aktif/semua)
@@ -218,8 +168,10 @@ app.get('/api/products', requireLogin, async (req, res) => {
 });
 
 // ADMIN: Tambah Menu Baru
-app.post('/api/products', requireLogin, async (req, res) => {
-  const { name, price, category, image, is_available } = req.body;
+// ADMIN: Tambah Menu Baru (Support Upload)
+app.post('/api/products', requireLogin, upload.single('image'), async (req, res) => {
+  const { name, price, category, is_available } = req.body;
+  const image = req.file ? req.file.filename : null;
 
   if (!name || !price || !category) {
     return res.status(400).json({ success: false, message: 'Nama, Harga, dan Kategori wajib diisi' });
@@ -228,7 +180,7 @@ app.post('/api/products', requireLogin, async (req, res) => {
   try {
     const [result] = await promisePool.execute(
       'INSERT INTO products (name, price, category, image, is_available) VALUES (?, ?, ?, ?, ?)',
-      [name, price, category, image || null, is_available !== undefined ? is_available : 1]
+      [name, price, category, image, is_available !== undefined ? is_available : 1]
     );
     res.json({ success: true, message: 'Menu berhasil ditambahkan', id: result.insertId });
   } catch (error) {
@@ -238,19 +190,122 @@ app.post('/api/products', requireLogin, async (req, res) => {
 });
 
 // ADMIN: Update Menu
-app.put('/api/products/:id', requireLogin, async (req, res) => {
-  const { name, price, category, image, is_available } = req.body;
+// ADMIN: Update Menu (Support Upload)
+app.put('/api/products/:id', requireLogin, upload.single('image'), async (req, res) => {
+  const { name, price, category, is_available } = req.body;
   const productId = req.params.id;
+  const image = req.file ? req.file.filename : undefined;
 
   try {
-    await promisePool.execute(
-      'UPDATE products SET name = ?, price = ?, category = ?, image = ?, is_available = ? WHERE id = ?',
-      [name, price, category, image, is_available, productId]
-    );
+    let query = 'UPDATE products SET name = ?, price = ?, category = ?, is_available = ?';
+    const params = [name, price, category, is_available];
+
+    if (image) {
+        query += ', image = ?';
+        params.push(image);
+    }
+
+    query += ' WHERE id = ?';
+    params.push(productId);
+
+    await promisePool.execute(query, params);
     res.json({ success: true, message: 'Menu berhasil diupdate' });
   } catch (error) {
     console.error('Error updating product', error);
     res.status(500).json({ success: false, message: 'Gagal update menu' });
+  }
+});
+
+app.delete('/api/products/:id', requireLogin, async (req, res) => {
+  const productId = req.params.id;
+  try {
+    await promisePool.execute('DELETE FROM products WHERE id = ?', [productId]);
+    res.json({ success: true, message: 'Menu berhasil dihapus' });
+  } catch (error) {
+    console.error('Error deleting product', error);
+    res.status(500).json({ success: false, message: 'Gagal hapus menu' });
+  }
+});
+
+// --- USER MANAGEMENT (STAFF) ---
+
+// GET All Users
+app.get('/api/users', requireLogin, async (req, res) => {
+  try {
+    const [rows] = await promisePool.query('SELECT * FROM users ORDER BY id DESC');
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Error fetching users', error);
+    res.status(500).json({ success: false, message: 'Gagal mengambil data staff' });
+  }
+});
+
+// ADD New User
+app.post('/api/users', requireLogin, async (req, res) => {
+  const { name, username, password, role } = req.body;
+  
+  if (!name || !username || !password || !role) {
+    return res.status(400).json({ success: false, message: 'Semua field wajib diisi' });
+  }
+
+  try {
+    // Check if username exists
+    const [existing] = await promisePool.execute('SELECT id FROM users WHERE username = ?', [username]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: 'Username sudah digunakan' });
+    }
+
+    await promisePool.execute(
+      'INSERT INTO users (name, username, password, role) VALUES (?, ?, ?, ?)',
+      [name, username, password, role]
+    );
+    res.json({ success: true, message: 'Staff berhasil ditambahkan' });
+  } catch (error) {
+    console.error('Error adding user', error);
+    res.status(500).json({ success: false, message: 'Gagal menambah staff' });
+  }
+});
+
+// UPDATE User
+app.put('/api/users/:id', requireLogin, async (req, res) => {
+  const { name, username, password, role } = req.body;
+  const userId = req.params.id;
+
+  try {
+    let query = 'UPDATE users SET name = ?, username = ?, role = ?';
+    const params = [name, username, role];
+
+    if (password) {
+      query += ', password = ?';
+      params.push(password);
+    }
+
+    query += ' WHERE id = ?';
+    params.push(userId);
+
+    await promisePool.execute(query, params);
+    res.json({ success: true, message: 'Data staff berhasil diperbarui' });
+  } catch (error) {
+    console.error('Error updating user', error);
+    res.status(500).json({ success: false, message: 'Gagal update staff' });
+  }
+});
+
+// DELETE User
+app.delete('/api/users/:id', requireLogin, async (req, res) => {
+  const userId = req.params.id;
+  
+  // Prevent deleting self
+  if (req.session.user && req.session.user.id == userId) {
+    return res.status(400).json({ success: false, message: 'Tidak bisa menghapus akun sendiri' });
+  }
+
+  try {
+    await promisePool.execute('DELETE FROM users WHERE id = ?', [userId]);
+    res.json({ success: true, message: 'Staff berhasil dihapus' });
+  } catch (error) {
+    console.error('Error deleting user', error);
+    res.status(500).json({ success: false, message: 'Gagal hapus staff' });
   }
 });
 
@@ -315,7 +370,7 @@ app.get('/api/transactions/today', requireLogin, async (req, res) => {
     const [rows] = await promisePool.execute(
       `SELECT id, total_amount, payment_method, created_at 
        FROM orders 
-       WHERE DATE(created_at) = CURDATE() 
+       -- WHERE DATE(created_at) = CURDATE() 
        ORDER BY id DESC LIMIT 10`
     );
     console.log(`Cashier History: Found ${rows.length} transactions for today`);
@@ -336,7 +391,7 @@ app.get('/api/admin/stats', requireLogin, async (req, res) => {
         COUNT(*) as total_transaksi,
         COALESCE(AVG(total_amount), 0) as rerata_pesanan
       FROM orders 
-      WHERE DATE(created_at) = CURRENT_DATE()
+      -- WHERE DATE(created_at) = CURRENT_DATE()
     `);
 
     console.log('Stats Result:', stats[0]);
@@ -349,7 +404,7 @@ app.get('/api/admin/stats', requireLogin, async (req, res) => {
       FROM order_items oi
       JOIN products p ON oi.product_id = p.id
       JOIN orders o ON oi.order_id = o.id
-      WHERE DATE(o.created_at) = CURRENT_DATE()
+      -- WHERE DATE(o.created_at) = CURRENT_DATE()
       GROUP BY oi.product_id
       ORDER BY total_sold DESC
       LIMIT 1
@@ -361,7 +416,7 @@ app.get('/api/admin/stats', requireLogin, async (req, res) => {
         HOUR(created_at) as hour,
         SUM(total_amount) as sales
       FROM orders
-      WHERE DATE(created_at) = CURRENT_DATE()
+      -- WHERE DATE(created_at) = CURRENT_DATE()
       GROUP BY HOUR(created_at)
       ORDER BY hour ASC
     `);
@@ -372,7 +427,7 @@ app.get('/api/admin/stats', requireLogin, async (req, res) => {
       FROM order_items oi
       JOIN products p ON oi.product_id = p.id
       JOIN orders o ON oi.order_id = o.id
-      WHERE DATE(o.created_at) = CURRENT_DATE()
+      -- WHERE DATE(o.created_at) = CURRENT_DATE()
       GROUP BY oi.product_id
       ORDER BY sales DESC
       LIMIT 5
@@ -382,7 +437,7 @@ app.get('/api/admin/stats', requireLogin, async (req, res) => {
     const [recent] = await promisePool.query(`
       SELECT id, total_amount, payment_method, created_at 
       FROM orders 
-      WHERE DATE(created_at) = CURRENT_DATE() 
+      -- WHERE DATE(created_at) = CURRENT_DATE() 
       ORDER BY id DESC LIMIT 10
     `);
 
@@ -419,27 +474,7 @@ app.get('/api/admin/transactions', requireLogin, async (req, res) => {
   }
 });
 
-app.delete('/api/users/:id', requireLogin, async (req, res) => {
-  const userId = req.params.id;
 
-  // Cegah menghapus user yang sedang login
-  if (req.session.user && req.session.user.id == userId) {
-    return res.status(400).json({ success: false, message: 'Tidak dapat menghapus user yang sedang login' });
-  }
-
-  try {
-    const [result] = await promisePool.execute('DELETE FROM users WHERE id = ?', [userId]);
-
-    if (result.affectedRows > 0) {
-      res.json({ success: true, message: 'User berhasil dihapus' });
-    } else {
-      res.status(404).json({ success: false, message: 'User tidak ditemukan' });
-    }
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ success: false, message: 'Gagal menghapus user' });
-  }
-});
 
 app.get('*', (req, res) => {
   res.status(404).json({ message: 'API endpoint not found' });
