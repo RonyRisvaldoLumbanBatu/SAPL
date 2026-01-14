@@ -9,13 +9,13 @@ const multer = require('multer');
 
 // Configure Multer for Image Upload
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'client/public/images');
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
+  destination: (req, file, cb) => {
+    cb(null, 'client/public/images');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
 });
 const upload = multer({ storage: storage });
 
@@ -201,8 +201,8 @@ app.put('/api/products/:id', requireLogin, upload.single('image'), async (req, r
     const params = [name, price, category, is_available];
 
     if (image) {
-        query += ', image = ?';
-        params.push(image);
+      query += ', image = ?';
+      params.push(image);
     }
 
     query += ' WHERE id = ?';
@@ -243,7 +243,7 @@ app.get('/api/users', requireLogin, async (req, res) => {
 // ADD New User
 app.post('/api/users', requireLogin, async (req, res) => {
   const { name, username, password, role } = req.body;
-  
+
   if (!name || !username || !password || !role) {
     return res.status(400).json({ success: false, message: 'Semua field wajib diisi' });
   }
@@ -294,7 +294,7 @@ app.put('/api/users/:id', requireLogin, async (req, res) => {
 // DELETE User
 app.delete('/api/users/:id', requireLogin, async (req, res) => {
   const userId = req.params.id;
-  
+
   // Prevent deleting self
   if (req.session.user && req.session.user.id == userId) {
     return res.status(400).json({ success: false, message: 'Tidak bisa menghapus akun sendiri' });
@@ -476,9 +476,20 @@ app.get('/api/admin/transactions', requireLogin, async (req, res) => {
 
 
 
+
+// --- SERVE STATIC FILES (PRODUCTION) ---
+// Serve uploaded images dynamically (so new uploads work immediately)
+app.use('/images', express.static(path.join(__dirname, 'client/public/images')));
+
+// Serve static files from the React app
+app.use(express.static(path.join(__dirname, 'client/dist')));
+
+// The "catchall" handler: for any request that doesn't
+// match one above, send back React's index.html file.
 app.get('*', (req, res) => {
-  res.status(404).json({ message: 'API endpoint not found' });
+  res.sendFile(path.join(__dirname, 'client/dist/index.html'));
 });
+
 
 app.listen(PORT, () => {
   console.log(`Server berjalan di http://localhost:${PORT}`);

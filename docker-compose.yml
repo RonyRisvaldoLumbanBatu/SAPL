@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: sapl-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASS=rootpassword
+      - DB_NAME=belajarjs
+    depends_on:
+      - db
+    volumes:
+      # Persist uploaded images so they don't disappear on restart
+      - ./client/public/images:/app/client/public/images
+
+  db:
+    image: mysql:8.0
+    container_name: sapl-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: belajarjs
+    ports:
+      - "3307:3306" # Expose to host port 3307 to avoid conflict with XAMPP/local MySQL
+    volumes:
+      - db_data:/var/lib/mysql
+      # Initialize DB with dump if it's the first run
+      - ./database.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  db_data:
