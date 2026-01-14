@@ -188,11 +188,11 @@ const AdminView = ({ user, handleLogout }) => {
 
     const openEditStaffModal = (staff) => {
         setEditingStaff(staff);
-        setStaffFormData({ 
-            name: staff.name, 
-            username: staff.username, 
-            password: '', 
-            role: staff.role || 'kasir' 
+        setStaffFormData({
+            name: staff.name,
+            username: staff.username,
+            password: '',
+            role: staff.role || 'kasir'
         });
         setShowStaffModal(true);
     };
@@ -241,14 +241,14 @@ const AdminView = ({ user, handleLogout }) => {
         data.append('price', formData.price);
         data.append('category', formData.category);
         data.append('is_available', formData.is_available);
-        
+
         if (formData.file) {
             data.append('image', formData.file);
         }
 
         try {
             const config = { headers: { 'Content-Type': 'multipart/form-data' } };
-            
+
             if (editingProduct) {
                 await axios.put(`/api/products/${editingProduct.id}`, data, config);
                 Swal.fire('Sukses', 'Menu berhasil diupdate', 'success');
@@ -331,8 +331,8 @@ const AdminView = ({ user, handleLogout }) => {
     }, []);
 
     return (
-        <div className="dashboard-layout" style={{ background: 'var(--dark-bg)', display: 'flex', height: '100vh', overflow: 'hidden' }}>
-            <aside style={{ width: '280px', background: 'var(--dark-surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', padding: '2rem' }}>
+        <div className="admin-layout">
+            <aside className="admin-sidebar">
                 <div style={{ marginBottom: '3rem', textAlign: 'center' }}>
                     <h2 className="text-gradient" style={{ fontSize: '1.8rem', marginBottom: '0.5rem' }}>SAPL Owner</h2>
                     <span style={{ background: 'rgba(249, 115, 22, 0.2)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', letterSpacing: '1px', fontWeight: '600', border: '1px solid rgba(249, 115, 22, 0.3)' }}>SUPER ADMIN</span>
@@ -341,27 +341,14 @@ const AdminView = ({ user, handleLogout }) => {
                     <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {[
                             { id: 'dashboard', label: 'Ringkasan', icon: LayoutDashboard },
-                            { id: 'reports', label: 'Laporan Penjualan', icon: History },
-                            { id: 'menu', label: 'Manajemen Menu', icon: UtensilsCrossed },
-                            { id: 'staff', label: 'Manajemen Staff', icon: Users }
+                            { id: 'reports', label: 'Laporan', icon: History },
+                            { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
+                            { id: 'staff', label: 'Staff', icon: Users }
                         ].map(item => (
                             <li
                                 key={item.id}
                                 onClick={() => !item.disabled && setActiveTab(item.id)}
-                                style={{
-                                    padding: '14px 16px',
-                                    borderRadius: '12px',
-                                    cursor: item.disabled ? 'not-allowed' : 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '12px',
-                                    color: activeTab === item.id ? '#fff' : '#888',
-                                    background: activeTab === item.id ? 'linear-gradient(90deg, #f97316, #ea580c)' : 'transparent',
-                                    transition: 'all 0.3s',
-                                    opacity: item.disabled ? 0.5 : 1,
-                                    fontWeight: activeTab === item.id ? '600' : '400',
-                                    boxShadow: activeTab === item.id ? '0 4px 12px rgba(249, 115, 22, 0.3)' : 'none'
-                                }}
+                                className={`admin-nav-item ${activeTab === item.id ? 'active' : ''}`}
                             >
                                 <item.icon size={20} />
                                 {item.label}
@@ -369,37 +356,48 @@ const AdminView = ({ user, handleLogout }) => {
                         ))}
                     </ul>
                 </nav>
-                <button onClick={handleLogout} className="btn" style={{ background: '#2a2a2a', color: '#ccc', border: '1px solid #444', justifyContent: 'center', marginTop: 'auto' }}>
+                <button onClick={handleLogout} className="btn-logout-sidebar">
                     <LogOut size={18} style={{ marginRight: '8px' }} /> Keluar
                 </button>
             </aside>
 
-            <main className="main-content" style={{ flex: 1, overflowY: 'auto', padding: '2.5rem', background: 'var(--dark-bg)' }}>
-                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+            {/* Mobile Bottom Navigation for Admin */}
+            <div className="admin-mobile-nav">
+                {[
+                    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+                    { id: 'reports', label: 'Laporan', icon: History },
+                    { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
+                    { id: 'staff', label: 'Staff', icon: Users }
+                ].map(item => (
+                    <div
+                        key={item.id}
+                        className={`mobile-nav-item ${activeTab === item.id ? 'active' : ''}`}
+                        onClick={() => setActiveTab(item.id)}
+                    >
+                        <item.icon size={20} />
+                        <span>{item.label}</span>
+                    </div>
+                ))}
+                <div className="mobile-nav-item logout" onClick={handleLogout}>
+                    <LogOut size={20} />
+                    <span>Keluar</span>
+                </div>
+            </div>
+
+            <main className="admin-content">
+                <header className="admin-header">
                     <div>
-                        <h1 style={{ fontSize: '2.5rem', margin: '0 0 0.5rem 0', fontWeight: 'bold' }}>Halo, Rony! 👋</h1>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>
-                            {activeTab === 'dashboard' ? 'Pantau performa bisnis Anda hari ini.' : 
-                             activeTab === 'menu' ? 'Kelola daftar menu restoran Anda.' : 
-                             activeTab === 'staff' ? 'Kelola akun kasir restoran.' : 'Laporan penjualan lengkap.'}
+                        <h1 className="admin-title">Halo, {user?.name || 'Admin'}! 👋</h1>
+                        <p className="admin-subtitle">
+                            {activeTab === 'dashboard' ? 'Pantau performa bisnis.' :
+                                activeTab === 'menu' ? 'Kelola daftar menu.' :
+                                    activeTab === 'staff' ? 'Kelola akun staff.' : 'Laporan penjualan.'}
                         </p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                        <div style={{
-                            background: 'var(--dark-surface)',
-                            padding: '10px 20px',
-                            borderRadius: '30px',
-                            fontFamily: 'monospace',
-                            fontSize: '1.1rem',
-                            border: '1px solid var(--border)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            color: 'var(--text-main)',
-                            boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-                        }}>
-                            <Clock size={18} color="var(--primary)" />
-                            {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    <div className="admin-header-right">
+                        <div className="date-badge">
+                            <Clock size={16} color="var(--primary)" />
+                            {currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         </div>
                     </div>
                 </header>
@@ -407,53 +405,51 @@ const AdminView = ({ user, handleLogout }) => {
                 {activeTab === 'dashboard' && (
                     <div style={{ animation: 'fadeIn 0.5s ease' }}>
                         {/* 4 Stat Cards */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
-                            <div style={{ background: 'linear-gradient(135deg, #FF4500 0%, #ff8c00 100%)', padding: '1.5rem', borderRadius: '24px', color: 'white', position: 'relative', overflow: 'hidden', boxShadow: '0 10px 30px rgba(255, 69, 0, 0.3)' }}>
-                                <div style={{ position: 'absolute', right: '-10px', bottom: '-10px', opacity: 0.2 }}><DollarSign size={80} /></div>
-                                <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', opacity: 0.8, marginBottom: '0.5rem', letterSpacing: '1px' }}>Total Omset</h3>
-                                <p style={{ fontSize: '1.8rem', fontWeight: 'bold', margin: '0.5rem 0' }}>Rp {(parseFloat(adminStats.summary.total_omset) || 0).toLocaleString('id-ID')}</p>
-                                <div style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: '20px', display: 'inline-block' }}>Pendapatan kotor hari ini</div>
+                        <div className="admin-stats-grid">
+                            <div className="stat-card orange">
+                                <div className="stat-icon-bg"><DollarSign size={80} /></div>
+                                <h3>Total Omset</h3>
+                                <p>Rp {(parseFloat(adminStats.summary.total_omset) || 0).toLocaleString('id-ID')}</p>
+                                <div className="stat-badge">Kotor hari ini</div>
                             </div>
 
-                            <div style={{ background: 'var(--dark-surface)', padding: '1.5rem', borderRadius: '24px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                    <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '10px', borderRadius: '12px', color: '#3b82f6' }}><Receipt size={24} /></div>
+                            <div className="stat-card">
+                                <div className="stat-header">
+                                    <div className="icon-box blue"><Receipt size={24} /></div>
                                     <TrendingUp size={16} color="var(--success)" />
                                 </div>
-                                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Total Transaksi</h3>
-                                <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{adminStats.summary.total_transaksi}</p>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: '5px' }}>Pesanan masuk hari ini</p>
+                                <h3>Total Transaksi</h3>
+                                <p>{adminStats.summary.total_transaksi}</p>
+                                <div className="stat-sub">Pesanan masuk</div>
                             </div>
 
-                            <div style={{ background: 'var(--dark-surface)', padding: '1.5rem', borderRadius: '24px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                    <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '10px', borderRadius: '12px', color: '#10b981' }}><Wallet size={24} /></div>
+                            <div className="stat-card">
+                                <div className="stat-header">
+                                    <div className="icon-box green"><Wallet size={24} /></div>
                                     <TrendingUp size={16} color="var(--success)" />
                                 </div>
-                                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Rerata Pesanan</h3>
-                                <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'white', margin: 0 }}>Rp {Math.round(adminStats.summary.rerata_pesanan || 0).toLocaleString()}</p>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '5px' }}>Per transaksi hari ini</p>
+                                <h3>Rerata Pesanan</h3>
+                                <p>Rp {Math.round(adminStats.summary.rerata_pesanan || 0).toLocaleString()}</p>
+                                <div className="stat-sub">Per transaksi</div>
                             </div>
 
-                            <div style={{ background: 'var(--dark-surface)', padding: '1.5rem', borderRadius: '24px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                    <div style={{ background: 'rgba(234, 179, 8, 0.1)', padding: '10px', borderRadius: '12px', color: '#eab308' }}><Utensils size={24} /></div>
+                            <div className="stat-card">
+                                <div className="stat-header">
+                                    <div className="icon-box yellow"><Utensils size={24} /></div>
                                     <CheckCircle size={16} color="#eab308" />
                                 </div>
-                                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Menu Terpopuler</h3>
-                                <p style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white', margin: 0 }}>{adminStats.topProduct.name}</p>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '5px' }}>Terjual {adminStats.topProduct.total_sold} porsi</p>
+                                <h3>Menu Terlaris</h3>
+                                <p className="truncate-text">{adminStats.topProduct.name}</p>
+                                <div className="stat-sub">{adminStats.topProduct.total_sold} porsi</div>
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
+                        <div className="admin-charts-grid">
                             {/* Sales Chart */}
-                            <div style={{ background: 'var(--dark-surface)', padding: '2rem', borderRadius: '30px', border: '1px solid var(--border)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                                    <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <TrendingUp size={20} color="var(--primary)" /> Tren Penjualan Hari Ini
-                                    </h3>
-                                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '5px 15px', borderRadius: '12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Realtime Update</div>
+                            <div className="chart-card">
+                                <div className="chart-header">
+                                    <h3><TrendingUp size={20} color="var(--primary)" /> Tren Penjualan</h3>
+                                    <div className="badge-mixed">Realtime</div>
                                 </div>
                                 <div style={{ height: '300px', width: '100%' }}>
                                     <ResponsiveContainer width="100%" height="100%">
@@ -466,7 +462,7 @@ const AdminView = ({ user, handleLogout }) => {
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                             <XAxis dataKey="time" stroke="#555" fontSize={12} tickLine={false} axisLine={false} />
-                                            <YAxis stroke="#555" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val / 1000}k`} />
+                                            <YAxis stroke="#555" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `${val / 1000}k`} />
                                             <Tooltip
                                                 contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#fff' }}
                                                 itemStyle={{ color: 'var(--primary)' }}
@@ -479,28 +475,25 @@ const AdminView = ({ user, handleLogout }) => {
                             </div>
 
                             {/* Top Selling Items List */}
-                            <div style={{ background: 'var(--dark-surface)', padding: '2rem', borderRadius: '30px', border: '1px solid var(--border)' }}>
-                                <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'white', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <CheckCircle size={20} color="#eab308" /> Menu Terlaris
-                                </h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div className="top-list-card">
+                                <h3><CheckCircle size={20} color="#eab308" /> Menu Terlaris</h3>
+                                <div className="top-list-items">
                                     {adminStats.topList.length === 0 ? (
-                                        <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>Belum ada data hari ini</p>
+                                        <p className="no-data">Belum ada data hari ini</p>
                                     ) : adminStats.topList.map((item, id) => (
-                                        <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <div style={{ width: '40px', height: '40px', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--primary)' }}>{id + 1}</div>
-                                            <div style={{ flex: 1 }}>
-                                                <h4 style={{ fontSize: '0.9rem', color: 'white', margin: 0 }}>{item.name}</h4>
-                                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{item.sales} Terjual</p>
+                                        <div key={id} className="top-item">
+                                            <div className="rank-badge">{id + 1}</div>
+                                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                                                <h4 className="truncate-text">{item.name}</h4>
+                                                <p>{item.sales} Terjual</p>
                                             </div>
                                             <div style={{ textAlign: 'right' }}>
-                                                <p style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'white', margin: 0 }}>Rp {item.price.toLocaleString()}</p>
-                                                <TrendingUp size={12} color="var(--success)" />
+                                                <p className="price">{(item.price / 1000).toFixed(0)}k</p>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                                <button onClick={() => setActiveTab('menu')} className="btn" style={{ width: '100%', marginTop: '1.5rem', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}>Kelola Daftar Menu</button>
+                                <button onClick={() => setActiveTab('menu')} className="btn-outline-full">Kelola Menu</button>
                             </div>
                         </div>
 
@@ -713,7 +706,7 @@ const AdminView = ({ user, handleLogout }) => {
                         </div>
                     </div>
                 )}
-                
+
                 {activeTab === 'staff' && (
                     <div style={{ animation: 'fadeIn 0.3s ease' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
@@ -750,12 +743,12 @@ const AdminView = ({ user, handleLogout }) => {
                                             </td>
                                             <td style={{ padding: '15px 20px', color: '#ccc', fontFamily: 'monospace' }}>@{staff.username}</td>
                                             <td style={{ padding: '15px 20px' }}>
-                                                <span style={{ 
-                                                    padding: '6px 14px', 
-                                                    borderRadius: '20px', 
-                                                    background: (staff.role || 'kasir') === 'admin' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(59, 130, 246, 0.15)', 
-                                                    color: (staff.role || 'kasir') === 'admin' ? '#f97316' : '#3b82f6', 
-                                                    fontSize: '0.8rem', 
+                                                <span style={{
+                                                    padding: '6px 14px',
+                                                    borderRadius: '20px',
+                                                    background: (staff.role || 'kasir') === 'admin' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                                                    color: (staff.role || 'kasir') === 'admin' ? '#f97316' : '#3b82f6',
+                                                    fontSize: '0.8rem',
                                                     fontWeight: '600',
                                                     textTransform: 'uppercase',
                                                     border: `1px solid ${(staff.role || 'kasir') === 'admin' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(59, 130, 246, 0.2)'}`,
@@ -794,7 +787,7 @@ const AdminView = ({ user, handleLogout }) => {
                                 </style>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                                     <h2 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '12px', margin: 0, letterSpacing: '-0.5px' }}>
-                                        {editingProduct ? <div style={{padding: '8px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px'}}><Edit size={20} color="#3b82f6" /></div> : <div style={{padding: '8px', background: 'rgba(249, 115, 22, 0.1)', borderRadius: '12px'}}><Plus size={20} color="#f97316" /></div>}
+                                        {editingProduct ? <div style={{ padding: '8px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px' }}><Edit size={20} color="#3b82f6" /></div> : <div style={{ padding: '8px', background: 'rgba(249, 115, 22, 0.1)', borderRadius: '12px' }}><Plus size={20} color="#f97316" /></div>}
                                         {editingProduct ? 'Edit Menu' : 'Tambah Menu Baru'}
                                     </h2>
                                     <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', padding: '5px', borderRadius: '50%', transition: 'all 0.2s', display: 'flex' }} onMouseOver={(e) => e.target.style.color = '#fff'} onMouseOut={(e) => e.target.style.color = '#71717a'}><X size={22} /></button>
@@ -804,36 +797,36 @@ const AdminView = ({ user, handleLogout }) => {
                                     {/* Name Input */}
                                     <div>
                                         <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Nama Menu</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Contoh: Nasi Goreng Spesial" 
-                                            className="input-field" 
-                                            value={formData.name} 
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
-                                            required 
-                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }} 
+                                        <input
+                                            type="text"
+                                            placeholder="Contoh: Nasi Goreng Spesial"
+                                            className="input-field"
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            required
+                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }}
                                             onFocus={(e) => e.target.style.borderColor = '#f97316'}
                                             onBlur={(e) => e.target.style.borderColor = '#3f3f46'}
                                         />
                                     </div>
-                                    
+
                                     {/* Price & Category */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                                         <div>
                                             <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Harga</label>
-                                            <div 
-                                                style={{ 
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    background: '#27272a', 
-                                                    border: '1px solid #3f3f46', 
-                                                    borderRadius: '12px', 
-                                                    padding: '0 16px', 
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    background: '#27272a',
+                                                    border: '1px solid #3f3f46',
+                                                    borderRadius: '12px',
+                                                    padding: '0 16px',
                                                     transition: 'border-color 0.2s'
                                                 }}
                                                 onFocus={(e) => e.currentTarget.style.borderColor = '#f97316'}
                                                 onBlur={(e) => e.currentTarget.style.borderColor = '#3f3f46'}
-                                                tabIndex={-1} 
+                                                tabIndex={-1}
                                             >
                                                 <span style={{ color: '#a1a1aa', marginRight: '8px', fontWeight: '500' }}>Rp</span>
                                                 <input
@@ -842,14 +835,14 @@ const AdminView = ({ user, handleLogout }) => {
                                                     value={formData.price}
                                                     onChange={(e) => setFormData({ ...formData, price: e.target.value === '' ? '' : parseFloat(e.target.value) })}
                                                     required
-                                                    style={{ 
-                                                        width: '100%', 
-                                                        padding: '14px 0', 
-                                                        background: 'transparent', 
-                                                        border: 'none', 
-                                                        color: 'white', 
-                                                        outline: 'none', 
-                                                        fontSize: '0.95rem' 
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '14px 0',
+                                                        background: 'transparent',
+                                                        border: 'none',
+                                                        color: 'white',
+                                                        outline: 'none',
+                                                        fontSize: '0.95rem'
                                                     }}
                                                 />
                                             </div>
@@ -857,20 +850,20 @@ const AdminView = ({ user, handleLogout }) => {
                                         <div>
                                             <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Kategori</label>
                                             <div style={{ position: 'relative' }}>
-                                                <select 
-                                                    value={formData.category} 
-                                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })} 
-                                                    style={{ 
-                                                        width: '100%', 
-                                                        padding: '14px 16px', 
+                                                <select
+                                                    value={formData.category}
+                                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '14px 16px',
                                                         paddingRight: '40px', // Space for arrow
-                                                        background: '#27272a', 
-                                                        border: '1px solid #3f3f46', 
-                                                        borderRadius: '12px', 
-                                                        color: 'white', 
-                                                        outline: 'none', 
-                                                        cursor: 'pointer', 
-                                                        fontSize: '0.95rem', 
+                                                        background: '#27272a',
+                                                        border: '1px solid #3f3f46',
+                                                        borderRadius: '12px',
+                                                        color: 'white',
+                                                        outline: 'none',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.95rem',
                                                         appearance: 'none',
                                                         WebkitAppearance: 'none',
                                                         MozAppearance: 'none'
@@ -892,14 +885,14 @@ const AdminView = ({ user, handleLogout }) => {
                                     {/* Image Upload */}
                                     <div>
                                         <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Foto Menu</label>
-                                        
-                                        <div 
-                                            style={{ 
-                                                border: '2px dashed #52525b', 
-                                                borderRadius: '16px', 
-                                                padding: '24px', 
-                                                background: 'rgba(39, 39, 42, 0.5)', 
-                                                textAlign: 'center', 
+
+                                        <div
+                                            style={{
+                                                border: '2px dashed #52525b',
+                                                borderRadius: '16px',
+                                                padding: '24px',
+                                                background: 'rgba(39, 39, 42, 0.5)',
+                                                textAlign: 'center',
                                                 position: 'relative',
                                                 transition: 'all 0.2s',
                                                 cursor: 'pointer'
@@ -913,11 +906,11 @@ const AdminView = ({ user, handleLogout }) => {
                                                 e.currentTarget.style.background = 'rgba(39, 39, 42, 0.5)';
                                             }}
                                         >
-                                            <input 
-                                                type="file" 
-                                                accept="image/*" 
-                                                id="imageUpload" 
-                                                style={{ display: 'none' }} 
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                id="imageUpload"
+                                                style={{ display: 'none' }}
                                                 onChange={(e) => {
                                                     const file = e.target.files[0];
                                                     if (file) {
@@ -925,35 +918,35 @@ const AdminView = ({ user, handleLogout }) => {
                                                     }
                                                 }}
                                             />
-                                            
+
                                             {/* Preview Logic */}
                                             {(formData.file || formData.image) ? (
                                                 <div style={{ position: 'relative' }}>
-                                                    <div style={{ 
-                                                        height: '160px', 
-                                                        width: '100%', 
-                                                        background: '#1f1f22', 
-                                                        borderRadius: '12px', 
-                                                        display: 'flex', 
-                                                        alignItems: 'center', 
+                                                    <div style={{
+                                                        height: '160px',
+                                                        width: '100%',
+                                                        background: '#1f1f22',
+                                                        borderRadius: '12px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
                                                         justifyContent: 'center',
                                                         overflow: 'hidden',
                                                         border: '1px solid #3f3f46'
                                                     }}>
-                                                        <img 
-                                                            src={formData.file ? URL.createObjectURL(formData.file) : `/images/${formData.image}`} 
-                                                            alt="Preview" 
-                                                            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                                                        <img
+                                                            src={formData.file ? URL.createObjectURL(formData.file) : `/images/${formData.image}`}
+                                                            alt="Preview"
+                                                            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                                                         />
                                                     </div>
-                                                    <label 
-                                                        htmlFor="imageUpload" 
-                                                        style={{ 
-                                                            display: 'inline-block', 
-                                                            marginTop: '12px', 
-                                                            color: '#f97316', 
-                                                            cursor: 'pointer', 
-                                                            fontWeight: '600', 
+                                                    <label
+                                                        htmlFor="imageUpload"
+                                                        style={{
+                                                            display: 'inline-block',
+                                                            marginTop: '12px',
+                                                            color: '#f97316',
+                                                            cursor: 'pointer',
+                                                            fontWeight: '600',
                                                             fontSize: '0.85rem',
                                                             padding: '6px 16px',
                                                             borderRadius: '20px',
@@ -972,7 +965,7 @@ const AdminView = ({ user, handleLogout }) => {
                                                     <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#3f3f46', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.2)' }}>
                                                         <Plus size={28} color="#f97316" />
                                                     </div>
-                                                    <div style={{textAlign: 'center'}}>
+                                                    <div style={{ textAlign: 'center' }}>
                                                         <span style={{ color: '#e4e4e7', fontWeight: '500', display: 'block', marginBottom: '4px' }}>Klik untuk upload foto</span>
                                                         <span style={{ color: '#a1a1aa', fontSize: '0.75rem' }}>Format: JPG, PNG, WEBP (Max 2MB)</span>
                                                     </div>
@@ -983,7 +976,7 @@ const AdminView = ({ user, handleLogout }) => {
 
                                     {/* Status Switch & Buttons */}
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '5px' }}>
-                                        <div 
+                                        <div
                                             style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
                                             onClick={() => setFormData(prev => ({ ...prev, is_available: prev.is_available === 1 ? 0 : 1 }))}
                                         >
@@ -1032,7 +1025,7 @@ const AdminView = ({ user, handleLogout }) => {
                             <div style={{ background: '#18181b', padding: '35px', borderRadius: '24px', width: '450px', border: '1px solid #27272a', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)', animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
                                     <h2 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '12px', margin: 0, letterSpacing: '-0.5px' }}>
-                                        {editingStaff ? <div style={{padding: '8px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px'}}><Edit size={20} color="#3b82f6" /></div> : <div style={{padding: '8px', background: 'rgba(249, 115, 22, 0.1)', borderRadius: '12px'}}><Plus size={20} color="#f97316" /></div>}
+                                        {editingStaff ? <div style={{ padding: '8px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px' }}><Edit size={20} color="#3b82f6" /></div> : <div style={{ padding: '8px', background: 'rgba(249, 115, 22, 0.1)', borderRadius: '12px' }}><Plus size={20} color="#f97316" /></div>}
                                         {editingStaff ? 'Edit Staff' : 'Tambah Staff Baru'}
                                     </h2>
                                     <button onClick={() => setShowStaffModal(false)} style={{ background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', padding: '5px', borderRadius: '50%', transition: 'all 0.2s', display: 'flex' }} onMouseOver={(e) => e.target.style.color = '#fff'} onMouseOut={(e) => e.target.style.color = '#71717a'}><X size={22} /></button>
@@ -1041,42 +1034,42 @@ const AdminView = ({ user, handleLogout }) => {
                                 <form onSubmit={handleSaveStaff} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                     <div>
                                         <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Nama Lengkap</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Nama Staff" 
-                                            className="input-field" 
-                                            value={staffFormData.name} 
-                                            onChange={(e) => setStaffFormData({ ...staffFormData, name: e.target.value })} 
-                                            required 
-                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }} 
+                                        <input
+                                            type="text"
+                                            placeholder="Nama Staff"
+                                            className="input-field"
+                                            value={staffFormData.name}
+                                            onChange={(e) => setStaffFormData({ ...staffFormData, name: e.target.value })}
+                                            required
+                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }}
                                             onFocus={(e) => e.target.style.borderColor = '#f97316'}
                                             onBlur={(e) => e.target.style.borderColor = '#3f3f46'}
                                         />
                                     </div>
                                     <div>
                                         <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>Username Login</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Username" 
-                                            className="input-field" 
-                                            value={staffFormData.username} 
-                                            onChange={(e) => setStaffFormData({ ...staffFormData, username: e.target.value })} 
-                                            required 
-                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }} 
+                                        <input
+                                            type="text"
+                                            placeholder="Username"
+                                            className="input-field"
+                                            value={staffFormData.username}
+                                            onChange={(e) => setStaffFormData({ ...staffFormData, username: e.target.value })}
+                                            required
+                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }}
                                             onFocus={(e) => e.target.style.borderColor = '#f97316'}
                                             onBlur={(e) => e.target.style.borderColor = '#3f3f46'}
                                         />
                                     </div>
                                     <div>
                                         <label style={{ display: 'block', color: '#a1a1aa', marginBottom: '8px', fontSize: '0.875rem', fontWeight: '500' }}>{editingStaff ? 'Password Baru (Opsional)' : 'Password'}</label>
-                                        <input 
-                                            type="password" 
+                                        <input
+                                            type="password"
                                             placeholder={editingStaff ? "Biarkan kosong jika tidak diubah" : "Password"}
-                                            className="input-field" 
-                                            value={staffFormData.password} 
-                                            onChange={(e) => setStaffFormData({ ...staffFormData, password: e.target.value })} 
+                                            className="input-field"
+                                            value={staffFormData.password}
+                                            onChange={(e) => setStaffFormData({ ...staffFormData, password: e.target.value })}
                                             required={!editingStaff}
-                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }} 
+                                            style={{ width: '100%', padding: '14px 16px', background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', color: 'white', outline: 'none', fontSize: '0.95rem', transition: 'border-color 0.2s' }}
                                             onFocus={(e) => e.target.style.borderColor = '#f97316'}
                                             onBlur={(e) => e.target.style.borderColor = '#3f3f46'}
                                         />
@@ -1361,37 +1354,65 @@ const CashierView = ({ user, handleLogout }) => {
                         <div className="pos-content">
                             <header className="pos-header">
                                 <div className="pos-welcome">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <div className="welcome-row">
                                         <h1>Halo, {user?.name || 'Kasir'}! 👋</h1>
-                                        <div style={{
-                                            background: 'var(--surface)',
-                                            padding: '5px 15px',
-                                            borderRadius: '20px',
-                                            fontFamily: 'monospace',
-                                            fontSize: '1.2rem',
-                                            border: '1px solid var(--border)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px'
-                                        }}>
+                                        <div className="date-badge">
                                             <Clock size={16} />
-                                            {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                            <span>
+                                                {currentTime.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })} • {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
                                         </div>
                                     </div>
-                                    <p style={{ color: 'var(--text-muted)' }}>Siap melayani pelanggan?</p>
+                                </div>
+
+                                {/* Header Actions (Mobile & Desktop) */}
+                                <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                    {/* Search Bar - Moved here for better layout on desktop, or keep separate? 
+                                        Let's keep search separate as it was and just add buttons here. 
+                                     */}
+                                    <button
+                                        className="btn-icon-header"
+                                        onClick={fetchHistory}
+                                        title="Riwayat Pesanan"
+                                        disabled={loadingHistory}
+                                    >
+                                        <History size={20} />
+                                    </button>
+                                    <button
+                                        className="btn-icon-header logout"
+                                        onClick={handleLogout}
+                                        title="Keluar"
+                                    >
+                                        <LogOut size={20} />
+                                    </button>
                                 </div>
 
                                 {/* Search Bar */}
                                 <div className="pos-search">
+                                    <Search className="search-icon" size={20} />
                                     <input
                                         type="text"
-                                        placeholder="Cari menu (cth: Ayam)..."
+                                        placeholder="Cari menu..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         className="input-field"
+                                        style={{ paddingLeft: '45px' }}
                                     />
                                 </div>
                             </header>
+
+                            {/* MOBILE CATEGORY NAV (Visible only on mobile) */}
+                            <div className="mobile-category-nav">
+                                {['all', 'Makanan', 'Minuman', 'Extra'].map(cat => (
+                                    <button
+                                        key={cat}
+                                        className={`mobile-cat-btn ${selectedCategory === cat ? 'active' : ''}`}
+                                        onClick={() => setSelectedCategory(cat)}
+                                    >
+                                        {cat === 'all' ? 'Semua' : cat}
+                                    </button>
+                                ))}
+                            </div>
 
                             {/* Render Categories */}
                             {filtered.length === 0 && (
@@ -1447,6 +1468,9 @@ const CashierView = ({ user, handleLogout }) => {
                                     </div>
                                 </>
                             )}
+
+                            {/* Spacer for bottom cart bar on mobile */}
+                            <div className="mobile-spacer" style={{ height: '80px', display: 'none' }}></div>
                         </div>
 
                         {/* RIGHT: Cart / Transactions */}
@@ -1531,6 +1555,25 @@ const CashierView = ({ user, handleLogout }) => {
                                 </button>
                             </div>
                         </div>
+
+                        {/* MOBILE CART FOOTER (Fixed Bottom) */}
+                        {cart.length > 0 && (
+                            <div className="mobile-cart-footer">
+                                <div className="cart-summary-text">
+                                    <span style={{ fontSize: '0.8rem', color: '#ccc', display: 'block' }}>{cart.reduce((a, b) => a + b.quantity, 0)} Item</span>
+                                    <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'white' }}>Rp {totalAmount.toLocaleString()}</span>
+                                </div>
+                                <button
+                                    className="btn-mobile-checkout"
+                                    onClick={() => {
+                                        const cartPanel = document.querySelector('.cart-panel');
+                                        if (cartPanel) cartPanel.scrollIntoView({ behavior: 'smooth' });
+                                    }}
+                                >
+                                    Lihat Pesanan
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
